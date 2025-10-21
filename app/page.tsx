@@ -179,7 +179,7 @@ const JobCard: React.FC<JobCardProps> = ({ job, onManageJob, onApplyJob, userRol
 
     return (
         <div className="border border-gray-200 bg-white shadow-sm rounded-xl py-4 flex justify-between items-center hover:shadow-md transition duration-150 px-4 cursor-pointer"
-             onClick={handleClick}
+            onClick={handleClick}
         >
             <div className="space-y-1">
                 <div className="flex items-center space-x-3">
@@ -515,9 +515,9 @@ const ManageJobModal: React.FC<ManageJobModalProps> = ({ isOpen, onClose, job })
                                         <td className="px-6 py-4 whitespace-nowrap">
                                             <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
                                                 ${candidate.stage === 'Screening' ? 'bg-yellow-100 text-yellow-800' : 
-                                                  candidate.stage === 'Interview' ? 'bg-blue-100 text-blue-800' : 
-                                                  candidate.stage === 'Hired' ? 'bg-green-100 text-green-800' : 
-                                                  'bg-red-100 text-red-800'}`}>
+                                                    candidate.stage === 'Interview' ? 'bg-blue-100 text-blue-800' : 
+                                                    candidate.stage === 'Hired' ? 'bg-green-100 text-green-800' : 
+                                                    'bg-red-100 text-red-800'}`}>
                                                 {candidate.stage}
                                             </span>
                                         </td>
