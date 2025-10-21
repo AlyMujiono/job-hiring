@@ -1,13 +1,13 @@
 // components/JobCard.tsx
 import React from 'react';
-import { JobListing } from '../lib/firebase/config'; // Impor antarmuka
+// import { JobListing } from '../lib/firebase/config'; // Impor antarmuka
 
 interface JobCardProps {
-    job: JobListing;
+    job: any;
 }
 
 // Fungsi helper untuk memformat status
-const getStatusClasses = (status: JobListing['status']) => {
+const getStatusClasses = (status: any['status']) => {
     switch (status) {
         case 'Active': return 'bg-green-100 text-green-700';
         case 'Inactive': return 'bg-red-100 text-red-700';
