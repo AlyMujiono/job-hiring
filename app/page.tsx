@@ -1,17 +1,17 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { Search, X, Loader2, Bell, Users, Clock, Mail, Phone, Calendar, Globe, User, Image, Heart, Briefcase, ChevronLeft } from 'lucide-react';
-import { Auth, getAuth, signInAnonymously, signInWithCustomToken } from 'firebase/auth'; 
-import app from '../lib/firebase/init'; // Sesuaikan path jika folder Anda bernama 'firebase'
-import { firestore, saveData } from '../lib/firebase/service'; // Sesuaikan path
-import { collection, getDocs, QueryDocumentSnapshot } from 'firebase/firestore';
+import { Search, X, Loader2, Bell, Users, Clock, Mail, Phone, Calendar, Globe, User, Image, Heart, Briefcase, ChevronLeft, LogOut } from 'lucide-react';
+import { onAuthStateChanged, signOut } from 'firebase/auth';
+import { auth } from '../lib/firebase/init';
+import { firestore, saveData } from '../lib/firebase/service';
+import { collection, getDocs, QueryDocumentSnapshot, doc, getDoc, addDoc } from 'firebase/firestore';
+import { useRouter } from 'next/navigation';
 
-// const appId = process.env.NEXT_PUBLIC_APP_ID || 'default-app-id'; 
+// const appId = process.env.NEXT_PUBLIC_APP_ID || 'default-app-id';
 const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
 
-const db = firestore; 
-const auth: Auth = getAuth(app); 
+const db = firestore;
 
 // ==========================================================
 // 1. TIPE DATA & FUNGSIONALITAS FIREBASE
@@ -48,6 +48,12 @@ interface Candidate {
     linkedin: string;
 }
 
+interface User {
+    uid: string;
+    email: string;
+    role: 'admin' | 'user';
+}
+
 // Data Dummy Kandidat untuk simulasi
 const dummyCandidates: Candidate[] = [
     { id: 'c1', name: 'John Doe', stage: 'Screening', appliedDate: '21 Oct 2025', email: 'john@example.com', phoneNumber: '0812...', linkedin: 'linkedin.com/in/john' },
@@ -55,20 +61,19 @@ const dummyCandidates: Candidate[] = [
     { id: 'c3', name: 'Budi Santoso', stage: 'Screening', appliedDate: '18 Oct 2025', email: 'budi@example.com', phoneNumber: '0814...', linkedin: 'linkedin.com/in/budi' },
 ];
 
-// Fungsi untuk otentikasi
-const authenticateUser = async () => {
-    if (!auth) return;
-    try {
-        const token = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
-        if (token) {
-            await signInWithCustomToken(auth, token);
-        } else {
-            await signInAnonymously(auth);
-        }
-    } catch (error) {
-        console.error("Authentication failed:", error);
-    }
-};
+// Fungsi untuk apply to job (untuk user)
+async function applyToJob(jobId: string, userId: string, applicationData: any): Promise<void> {
+    if (!db) throw new Error("Database tidak terinisialisasi.");
+    const applicationsCollectionPath = `artifacts/${appId}/public/data/job_applications`;
+    const dataToSave = {
+        jobId,
+        userId,
+        ...applicationData,
+        appliedAt: new Date(),
+        status: 'Applied',
+    };
+    await addDoc(collection(db, applicationsCollectionPath), dataToSave);
+}
 
 async function saveJobOpening(jobData: any): Promise<void> {
     if (!db) throw new Error("Database tidak terinisialisasi.");
@@ -145,6 +150,8 @@ const LoadingSpinner: React.FC = () => (
 interface JobCardProps {
     job: JobListing;
     onManageJob: (job: JobListing) => void;
+    onApplyJob?: (job: JobListing) => void;
+    userRole?: 'admin' | 'user';
 }
 
 const getStatusClasses = (status: JobListing['status']) => {
@@ -170,15 +177,23 @@ const formatSalary = (num: string) => {
     return numberValue.toLocaleString('id-ID');
 }
 
-const JobCard: React.FC<JobCardProps> = ({ job, onManageJob }) => {
+const JobCard: React.FC<JobCardProps> = ({ job, onManageJob, onApplyJob, userRole }) => {
     const statusClasses = getStatusClasses(job.status);
     const formattedDate = formatDate(job.createdAt);
     const minSalary = `Rp ${formatSalary(job.minSalary)}`;
     const maxSalary = `Rp ${formatSalary(job.maxSalary)}`;
 
+    const handleClick = () => {
+        if (userRole === 'admin') {
+            onManageJob(job);
+        } else if (userRole === 'user' && onApplyJob) {
+            onApplyJob(job);
+        }
+    };
+
     return (
         <div className="border border-gray-200 bg-white shadow-sm rounded-xl py-4 flex justify-between items-center hover:shadow-md transition duration-150 px-4 cursor-pointer"
-             onClick={() => onManageJob(job)} // Klik card untuk manage job
+             onClick={handleClick}
         >
             <div className="space-y-1">
                 <div className="flex items-center space-x-3">
@@ -203,19 +218,28 @@ const JobCard: React.FC<JobCardProps> = ({ job, onManageJob }) => {
                 </p>
             </div>
 
-            {/* Tombol Manage Job */}
-            <button 
-                className="self-center bg-teal-50 text-teal-600 text-sm font-medium py-1 px-3 rounded-lg hover:bg-teal-100 transition duration-150 shadow-sm border border-teal-200"
-                onClick={(e) => { e.stopPropagation(); onManageJob(job); }}
-            >
-                Manage Job
-            </button>
+            {/* Tombol berdasarkan role */}
+            {userRole === 'admin' ? (
+                <button
+                    className="self-center bg-teal-50 text-teal-600 text-sm font-medium py-1 px-3 rounded-lg hover:bg-teal-100 transition duration-150 shadow-sm border border-teal-200"
+                    onClick={(e) => { e.stopPropagation(); onManageJob(job); }}
+                >
+                    Manage Job
+                </button>
+            ) : (
+                <button
+                    className="self-center bg-blue-50 text-blue-600 text-sm font-medium py-1 px-3 rounded-lg hover:bg-blue-100 transition duration-150 shadow-sm border border-blue-200"
+                    onClick={(e) => { e.stopPropagation(); onApplyJob && onApplyJob(job); }}
+                >
+                    Apply Now
+                </button>
+            )}
         </div>
     );
 };
 
 // ==========================================================
-// 3. KOMPONEN MODAL JOB OPENING
+// 4. KOMPONEN MODAL (JOB OPENING & MANAGE)
 // ==========================================================
 
 interface JobOpeningModalProps {
@@ -229,7 +253,7 @@ const initialFormState = {
     jobType: 'Full-Time',
     minSalary: '',
     maxSalary: '',
-    location: '', // Tambahkan location jika relevan (tidak terlihat di gambar, tapi umum)
+    location: 'Remote/Jakarta', // Contoh placeholder
     description: '',
     numberOfCandidates: '1', 
     fullNameRequired: 'Mandatory' as 'Mandatory' | 'Optional' | 'Off',
@@ -298,11 +322,10 @@ const JobOpeningModal: React.FC<JobOpeningModalProps> = ({ isOpen, onClose, onSa
         setIsSaving(true);
         try {
             await onSave(form);
-            // onClose dipanggil di handler induk
+            onClose(); // Tutup modal setelah save berhasil
         } catch (error) {
             setSaveError("Gagal menyimpan data. Cek koneksi Firebase.");
             console.error("Submission failed:", error);
-            throw error; 
         } finally {
             setIsSaving(false);
         }
@@ -311,7 +334,7 @@ const JobOpeningModal: React.FC<JobOpeningModalProps> = ({ isOpen, onClose, onSa
     if (!isOpen) return null;
 
     return (
-        <div className="fixed inset-0 bg-gray-900 bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
             <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[95vh] overflow-y-auto transform transition-all duration-300">
                 
                 {/* Header Modal */}
@@ -360,7 +383,7 @@ const JobOpeningModal: React.FC<JobOpeningModalProps> = ({ isOpen, onClose, onSa
                             </select>
                         </div>
 
-                        {/* Job Description (Textarea) */}
+                        {/* Job Description (Textarea) - DILENGKAPI */}
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor="description">Job Description*</label>
                             <textarea
@@ -376,7 +399,7 @@ const JobOpeningModal: React.FC<JobOpeningModalProps> = ({ isOpen, onClose, onSa
                         </div>
                     </div>
 
-                    {/* Job Salary Section */}
+                    {/* Job Salary Section - DILENGKAPI */}
                     <div className="space-y-4">
                         <h3 className="text-lg font-bold text-gray-800 border-b pb-2 mb-4">Job Salary</h3>
                         {/* Number of Candidates */}
@@ -424,7 +447,7 @@ const JobOpeningModal: React.FC<JobOpeningModalProps> = ({ isOpen, onClose, onSa
                         </div>
                     </div>
 
-                    {/* Minimum Profile Information Required Section */}
+                    {/* Minimum Profile Information Required Section - DILENGKAPI */}
                     <div className='space-y-1'>
                         <h3 className="text-lg font-bold text-gray-800 border-b pb-2 mb-4 pt-4">Minimum Profile Information Required</h3>
                         <div className="space-y-0">
@@ -432,395 +455,353 @@ const JobOpeningModal: React.FC<JobOpeningModalProps> = ({ isOpen, onClose, onSa
                             <RequirementToggle label="Photo Profile" field="photoProfileRequired" />
                             <RequirementToggle label="Gender" field="genderRequired" />
                             <RequirementToggle label="Domicile" field="domicileRequired" />
-                            <RequirementToggle label="Email" field="emailRequired" />
-                            <RequirementToggle label="Phone number" field="phoneNumberRequired" />
-                            <RequirementToggle label="LinkedIn link" field="linkedinLinkRequired" />
-                            <RequirementToggle label="Date of birth" field="dateOfBirthRequired" />
+                            <RequirementToggle label="Email Address" field="emailRequired" />
+                            <RequirementToggle label="Phone Number" field="phoneNumberRequired" />
+                            <RequirementToggle label="LinkedIn Link" field="linkedinLinkRequired" />
+                            <RequirementToggle label="Date of Birth" field="dateOfBirthRequired" />
                         </div>
                     </div>
-
-
-                    {/* Error Message */}
-                    {saveError && (
-                        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative text-sm" role="alert">
-                            <strong className="font-bold">Error:</strong>
-                            <span className="block sm:inline"> {saveError}</span>
-                        </div>
-                    )}
                     
-                    {/* Footer / Buttons */}
-                    <div className="flex justify-end space-x-3 pt-4 sticky bottom-0 bg-white border-t border-gray-200 p-4 -mx-6 -mb-6 rounded-b-xl">
-                        <button
-                            type="button"
-                            onClick={onClose}
-                            className="px-6 py-2 text-sm font-semibold text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 transition"
-                            disabled={isSaving}
-                        >
-                            Cancel
-                        </button>
+                    {saveError && (
+                        <p className="text-sm text-red-500 text-center">{saveError}</p>
+                    )}
+
+                    {/* Footer / Submit Button */}
+                    <div className="pt-4 border-t border-gray-200">
                         <button
                             type="submit"
-                            className={`px-6 py-2 text-sm font-semibold text-white rounded-lg transition ${
-                                isSaving ? 'bg-teal-400 cursor-not-allowed' : 'bg-teal-600 hover:bg-teal-700 shadow-md'
-                            }`}
                             disabled={isSaving}
+                            className={`w-full py-3 px-6 rounded-lg font-semibold transition duration-300 shadow-lg flex items-center justify-center space-x-2
+                                ${isSaving ? 'bg-teal-400 cursor-not-allowed' : 'bg-teal-600 hover:bg-teal-700 text-white'}`}
                         >
-                            {isSaving ? (
-                                <div className="flex items-center">
-                                    <Loader2 className="w-4 h-4 mr-2 animate-spin" /> Publishing...
-                                </div>
-                            ) : (
-                                'Publish Job'
-                            )}
+                            {isSaving && <Loader2 className="w-5 h-5 animate-spin mr-2" />}
+                            {isSaving ? 'Saving Job...' : 'Publish Job Opening'}
                         </button>
                     </div>
+
                 </form>
             </div>
         </div>
     );
 };
 
-
 // ==========================================================
-// 4. KOMPONEN MANAGE JOB
+// 5. KOMPONEN MODAL MANAGE JOB (PLACEHOLDER)
 // ==========================================================
 
-interface ManageJobProps {
-    job: JobListing;
-    onBack: () => void;
+interface ManageJobModalProps {
+    isOpen: boolean;
+    onClose: () => void;
+    job: JobListing | null;
 }
 
-// Komponen Kandidat List Item (sesuai tabel di gambar)
-const CandidateListItem: React.FC<{ candidate: Candidate }> = ({ candidate }) => {
-    const getStageColor = (stage: Candidate['stage']) => {
-        switch (stage) {
-            case 'Screening': return 'bg-yellow-100 text-yellow-700';
-            case 'Interview': return 'bg-blue-100 text-blue-700';
-            case 'Hired': return 'bg-green-100 text-green-700';
-            case 'Rejected': return 'bg-red-100 text-red-700';
-            default: return 'bg-gray-100 text-gray-700';
-        }
-    }
+const ManageJobModal: React.FC<ManageJobModalProps> = ({ isOpen, onClose, job }) => {
+    if (!isOpen || !job) return null;
 
+    // Placeholder untuk tampilan detail Job dan list kandidat
     return (
-        <tr className="border-b hover:bg-gray-50 transition duration-100">
-            <td className="px-6 py-3 whitespace-nowrap text-sm font-medium text-gray-900 flex items-center space-x-3">
-                <User className='w-4 h-4 text-gray-400'/>
-                <span>{candidate.name}</span>
-            </td>
-            <td className="px-6 py-3 whitespace-nowrap text-sm text-gray-500">
-                <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getStageColor(candidate.stage)}`}>
-                    {candidate.stage}
-                </span>
-            </td>
-            <td className="px-6 py-3 whitespace-nowrap text-sm text-gray-500">{candidate.appliedDate}</td>
-            <td className="px-6 py-3 whitespace-nowrap text-sm text-gray-500">
-                <a href={`mailto:${candidate.email}`} className='text-teal-600 hover:text-teal-800'>{candidate.email}</a>
-            </td>
-            <td className="px-6 py-3 whitespace-nowrap text-sm text-gray-500">{candidate.phoneNumber}</td>
-            <td className="px-6 py-3 whitespace-nowrap text-right text-sm font-medium">
-                <a href={candidate.linkedin} target='_blank' rel='noopener noreferrer' className='text-teal-600 hover:text-teal-800'>Link</a>
-            </td>
-        </tr>
-    );
-}
-
-// Komponen Manage Job
-const ManageJobPage: React.FC<ManageJobProps> = ({ job, onBack }) => {
-    const [candidates, setCandidates] = useState<Candidate[]>(dummyCandidates); // Gunakan data dummy
-    const [viewMode, setViewMode] = useState<'Candidates' | 'Details'>('Candidates'); // Default lihat kandidat
-
-    // Simulasikan kondisi: Ada kandidat (candidates.length > 0) atau Empty State
-    const hasCandidates = candidates.length > 0;
-
-    const CandidateListTable = () => (
-        <div className="shadow overflow-hidden border-b border-gray-200 sm:rounded-lg mt-6">
-            <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
-                    <tr>
-                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Candidate Name
-                        </th>
-                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Stage
-                        </th>
-                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Applied Date
-                        </th>
-                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Email
-                        </th>
-                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Phone
-                        </th>
-                        <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            LinkedIn
-                        </th>
-                    </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                    {candidates.map(candidate => (
-                        <CandidateListItem key={candidate.id} candidate={candidate} />
-                    ))}
-                </tbody>
-            </table>
-        </div>
-    );
-
-    const EmptyCandidateState = () => (
-        <div className="flex flex-col items-center justify-center p-12 bg-white rounded-lg border border-dashed border-gray-300 mt-6">
-            <div className="w-40 h-40 mb-4 opacity-70">
-                {/*  */}
-                <img src="https://firebasestorage.googleapis.com/v0/b/chat-with-file-82d2f.appspot.com/o/empty-candidate-box.png?alt=media&token=c1a3b8d4-53c6-4d2d-9494-0e3a47b8e5c8" alt="No candidate found illustration" className="w-full h-full object-contain" />
-            </div>
-            <h3 className="text-lg font-semibold text-gray-800 mb-1">No candidate found</h3>
-            <p className="text-gray-500 text-sm">Please wait for candidates to apply to this job.</p>
-        </div>
-    );
-    
-    // Header Manage Job
-    return (
-        <div className="min-h-screen bg-gray-50 p-6 lg:p-8">
-            <header className="flex items-center space-x-4 mb-8">
-                <button onClick={onBack} className="text-gray-500 hover:text-gray-700 p-2 -ml-2 rounded-full transition">
-                    <ChevronLeft className="w-6 h-6" />
-                </button>
-                <h1 className="text-2xl font-bold text-gray-800">Manage Job: <span className='text-teal-600'>{job.jobName}</span></h1>
-            </header>
-
-            <div className='flex space-x-4 border-b border-gray-200 mb-6'>
-                <button 
-                    onClick={() => setViewMode('Candidates')}
-                    className={`pb-2 text-sm font-medium transition duration-150 ${viewMode === 'Candidates' ? 'text-teal-600 border-b-2 border-teal-600' : 'text-gray-500 hover:text-gray-700'}`}
-                >
-                    Manage Candidates ({candidates.length})
-                </button>
-                <button 
-                    onClick={() => setViewMode('Details')}
-                    className={`pb-2 text-sm font-medium transition duration-150 ${viewMode === 'Details' ? 'text-teal-600 border-b-2 border-teal-600' : 'text-gray-500 hover:text-gray-700'}`}
-                >
-                    Job Details
-                </button>
-            </div>
-            
-            {/* Konten Utama Manage Job */}
-            <div className="max-w-7xl mx-auto">
-                {viewMode === 'Candidates' && (
-                    <div className="bg-white p-6 rounded-xl shadow-lg">
-                        <h2 className='text-xl font-semibold text-gray-800 mb-4'>Job Candidates</h2>
-                        {hasCandidates ? <CandidateListTable /> : <EmptyCandidateState />}
+        <div className="fixed inset-0 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[95vh] overflow-y-auto transform transition-all duration-300">
+                {/* Header */}
+                <div className="sticky top-0 bg-white p-6 border-b border-gray-200 flex justify-between items-center z-10">
+                    <h2 className="text-2xl font-bold text-gray-800 flex items-center">
+                        <ChevronLeft className="w-6 h-6 mr-2 text-gray-400 cursor-pointer hover:text-gray-600" onClick={onClose} />
+                        Manage: {job.jobName}
+                    </h2>
+                    <button onClick={onClose} className="text-gray-400 hover:text-gray-600 p-1 rounded-full transition">
+                        <X className="w-6 h-6" />
+                    </button>
+                </div>
+                
+                {/* Content: Job Info + Candidates List */}
+                <div className="p-6">
+                    <div className="bg-teal-50 p-4 rounded-lg mb-6">
+                        <p className="text-sm font-semibold text-teal-700">Candidates Applied: {dummyCandidates.length}</p>
                     </div>
-                )}
-                {viewMode === 'Details' && (
-                    <div className="bg-white p-6 rounded-xl shadow-lg space-y-6">
-                        <h2 className='text-xl font-semibold text-gray-800'>Job Details & Requirements</h2>
-                        <p className='text-gray-600 whitespace-pre-wrap'>{job.description}</p>
-                        
-                        <div className="grid grid-cols-2 gap-4 text-sm text-gray-600">
-                            <div className='flex items-center space-x-2'><Briefcase className='w-4 h-4 text-teal-500'/> <span>Type: {job.jobType}</span></div>
-                            <div className='flex items-center space-x-2'><Clock className='w-4 h-4 text-teal-500'/> <span>Status: <span className={`font-semibold ${getStatusClasses(job.status)} px-2 rounded-full`}>{job.status}</span></span></div>
-                            <div className='flex items-center space-x-2'><Users className='w-4 h-4 text-teal-500'/> <span>Needed: {job.numberOfCandidates} Candidates</span></div>
-                            <div className='flex items-center space-x-2'><Heart className='w-4 h-4 text-teal-500'/> <span>Salary: Rp {formatSalary(job.minSalary)} - Rp {formatSalary(job.maxSalary)}</span></div>
-                        </div>
-
-                        <h3 className="text-lg font-semibold text-gray-800 pt-4 border-t mt-4">Required Candidate Information</h3>
-                        <ul className='grid grid-cols-2 gap-3 text-sm'>
-                            {Object.entries(job).filter(([key]) => key.endsWith('Required')).map(([key, value]) => (
-                                <li key={key} className='flex justify-between'>
-                                    <span className='text-gray-700'>{key.replace('Required', '').replace(/([A-Z])/g, ' $1').trim()}</span>
-                                    <span className={`font-medium ${value === 'Mandatory' ? 'text-red-500' : value === 'Optional' ? 'text-yellow-600' : 'text-gray-400'}`}>{value}</span>
-                                </li>
-                            ))}
-                        </ul>
+                    {/* Placeholder Table for Candidates */}
+                    <h3 className="text-xl font-bold text-gray-800 mb-4">Candidate List</h3>
+                    <div className="overflow-x-auto">
+                        <table className="min-w-full divide-y divide-gray-200">
+                            <thead className="bg-gray-50">
+                                <tr>
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Stage</th>
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Applied Date</th>
+                                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody className="bg-white divide-y divide-gray-200">
+                                {dummyCandidates.map(candidate => (
+                                    <tr key={candidate.id} className="hover:bg-gray-50">
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{candidate.name}</td>
+                                        <td className="px-6 py-4 whitespace-nowrap">
+                                            <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
+                                                ${candidate.stage === 'Screening' ? 'bg-yellow-100 text-yellow-800' : 
+                                                  candidate.stage === 'Interview' ? 'bg-blue-100 text-blue-800' : 
+                                                  candidate.stage === 'Hired' ? 'bg-green-100 text-green-800' : 
+                                                  'bg-red-100 text-red-800'}`}>
+                                                {candidate.stage}
+                                            </span>
+                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{candidate.appliedDate}</td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                            <a href="#" className="text-teal-600 hover:text-teal-900">View Profile</a>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
                     </div>
-                )}
+                </div>
             </div>
         </div>
     );
 }
 
 // ==========================================================
-// 5. KOMPONEN UTAMA (JobListPage)
+// 6. KOMPONEN UTAMA (JOB LIST PAGE) - DILENGKAPI
 // ==========================================================
 
-const UserAvatar: React.FC<{ className?: string }> = ({ className = "w-8 h-8 rounded-full" }) => (
-    <div className={`w-8 h-8 rounded-full bg-gray-300 flex items-center justify-center font-bold text-gray-700 text-sm ${className}`}>
-        <User className='w-5 h-5'/>
-    </div>
-);
-
-
-// Menggunakan export function biasa
-export function JobListPage() {
-    const [isModalOpen, setIsModalOpen] = useState(false);
-    const [jobs, setJobs] = useState<JobListing[]>([]); 
-    const [showNotification, setShowNotification] = useState(false); 
+const JobListPage: React.FC = () => {
+    const [jobListings, setJobListings] = useState<JobListing[]>([]);
     const [isLoading, setIsLoading] = useState(true);
-    const [isAuthReady, setIsAuthReady] = useState(false);
-    const [activeJob, setActiveJob] = useState<JobListing | null>(null); // State untuk Manage Job
+    const [isModalOpen, setIsModalOpen] = useState(false);
+    const [isManageModalOpen, setIsManageModalOpen] = useState(false);
+    const [selectedJob, setSelectedJob] = useState<JobListing | null>(null);
+    const [searchTerm, setSearchTerm] = useState('');
+    const [user, setUser] = useState<User | null>(null);
+    const [userRole, setUserRole] = useState<'admin' | 'user' | null>(null);
+    const router = useRouter();
 
-    // AUTHENTICATION & FETCHING SETUP
     useEffect(() => {
-        authenticateUser().then(() => {
-            setIsAuthReady(true);
+        const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+            if (currentUser) {
+                const userDoc = await getDoc(doc(db, 'users', currentUser.uid));
+                if (userDoc.exists()) {
+                    const role = userDoc.data().role;
+                    setUser({ uid: currentUser.uid, email: currentUser.email!, role });
+                    setUserRole(role);
+                }
+            } else {
+                router.push('/login');
+            }
         });
-    }, []);
+        return () => unsubscribe();
+    }, [router]);
 
-    const fetchJobs = useCallback(async () => {
-        if (!db) {
-            setIsLoading(false);
-            return;
-        }
+    const handleJobFetch = useCallback(async () => {
         setIsLoading(true);
-        const jobList = await getJobOpenings();
-        setJobs(jobList);
-        setIsLoading(false);
+        try {
+            const jobs = await getJobOpenings();
+            setJobListings(jobs);
+        } catch (error) {
+            console.error("Gagal mengambil data:", error);
+        } finally {
+            setIsLoading(false);
+        }
     }, []);
 
-    // 2. Fetch data setelah Auth siap
     useEffect(() => {
-        if (isAuthReady) {
-            fetchJobs();
+        if (userRole) {
+            handleJobFetch();
         }
-    }, [isAuthReady, fetchJobs]);
+    }, [handleJobFetch, userRole]);
 
+    const handleSaveToDatabase = async (data: any) => {
+        try {
+            await saveJobOpening(data);
+            await handleJobFetch(); // Reload data setelah save
+        } catch (error) {
+            throw error;
+        }
+    };
 
     const openModal = () => setIsModalOpen(true);
-    const closeModal = () => setIsModalOpen(false); 
-    const handleManageJob = (job: JobListing) => setActiveJob(job);
-    const handleBackToJobList = () => setActiveJob(null);
+    const closeModal = () => setIsModalOpen(false);
 
-    // Fungsi Handler untuk Menyimpan Data (memperbarui UI)
-    const handleSaveToDatabase = async (jobData: FormState) => {
+    const handleManageJob = (job: JobListing) => {
+        setSelectedJob(job);
+        setIsManageModalOpen(true);
+    };
+    const closeManageModal = () => {
+        setIsManageModalOpen(false);
+        setSelectedJob(null);
+    };
+
+    const handleApplyJob = async (job: JobListing) => {
+        if (!user) return;
+        // Simple apply - in real app, would have a form
         try {
-            await saveJobOpening(jobData);
-            
-            // Setelah sukses menyimpan:
-            await fetchJobs(); // Ambil ulang data terbaru
-            closeModal(); // Tutup modal
-            
-            // Tampilkan notifikasi sukses
-            setShowNotification(true);
-            setTimeout(() => setShowNotification(false), 5000); 
-
+            await applyToJob(job.id, user.uid, {
+                name: user.email, // Placeholder
+                email: user.email,
+            });
+            alert('Applied successfully!');
         } catch (error) {
-            console.error("Gagal menyimpan data pekerjaan:", error);
-            throw error; 
+            console.error('Apply failed:', error);
         }
     };
-    
-    const isEmpty = jobs.length === 0 && !isLoading;
 
-    // Tampilkan Manage Job jika ada activeJob
-    if (activeJob) {
-        return <ManageJobPage job={activeJob} onBack={handleBackToJobList} />;
-    }
-
-    const MainContent = () => {
-        if (isLoading) {
-            return <LoadingSpinner />;
-        }
-
-        if (isEmpty) {
-            return (
-                <div className="flex flex-col items-center justify-center pt-8 pb-12 text-center border border-dashed border-gray-300 p-8 rounded-xl bg-white shadow-sm">
-                    <div className="relative w-full max-w-sm">
-                         {/*  */}
-                        <img 
-                            src="https://firebasestorage.googleapis.com/v0/b/chat-with-file-82d2f.appspot.com/o/empty-state-job-list.png?alt=media&token=8d3b0e1e-2d5f-4d3f-8c3e-3f6e8d2e8b2e" 
-                            alt="No job openings illustration"
-                            className="w-full h-full object-contain max-h-40"
-                        />
-                    </div>
-                    
-                    <h2 className="text-xl font-semibold text-gray-800 mb-2">No job openings available</h2>
-                    <p className="text-gray-500 mb-8 max-w-sm">Create a job opening now and start the candidate process.</p>
-                </div>
-            );
-        }
-        
-        // Merender daftar pekerjaan
-        return (
-            <div className="space-y-3">
-                {jobs.map(job => (
-                    <JobCard key={job.id} job={job} onManageJob={handleManageJob} />
-                ))}
-            </div>
-        );
+    const handleLogout = async () => {
+        await signOut(auth);
+        router.push('/login');
     };
+
+    const filteredJobs = jobListings.filter(job =>
+        job.jobName.toLowerCase().includes(searchTerm.toLowerCase())
+    );
 
     return (
         <>
-        <div className="min-h-screen bg-gray-50 font-sans">
-            {/* Header */}
-            <header className="px-6 py-4 border-b border-gray-200 flex justify-between items-center sticky top-0 z-30 bg-white shadow-sm">
-                <h1 className="text-2xl font-bold text-gray-800">Job List</h1>
-                <div className="relative"> <UserAvatar /> </div>
-            </header>
-
-            {/* Notifikasi Sukses */}
-            <div className={`transition-all duration-300 ${showNotification ? 'translate-y-0 opacity-100' : '-translate-y-full opacity-0'} sticky top-[69px] z-20`}>
-                <div className="p-4 bg-white border-b border-green-200 shadow-md flex items-center justify-center">
-                    <div className='flex items-center space-x-2 bg-green-50 px-4 py-2 rounded-lg'>
-                        <Bell className='w-5 h-5 text-green-600'/>
-                        <span className="text-sm font-medium text-green-700">
-                            Job vacancy successfully created!
-                        </span>
-                        <X 
-                            className="w-4 h-4 text-green-500 cursor-pointer hover:text-green-700" 
-                            onClick={() => setShowNotification(false)}
-                        />
+        <div className="min-h-screen bg-gray-50">
+            {/* Navbar */}
+            <header className="sticky top-0 z-40 bg-white border-b border-gray-200 shadow-sm">
+                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+                    <div className="flex items-center space-x-4">
+                        <div className="text-2xl font-bold text-teal-600">RecruitPro</div>
+                    </div>
+                    <div className="flex items-center space-x-4">
+                        <button className="text-gray-400 hover:text-gray-500 p-2 rounded-full">
+                            <Bell className="w-6 h-6" />
+                        </button>
+                        <div className="flex items-center space-x-2">
+                            {/* Avatar */}
+                            <div className="w-8 h-8 bg-teal-200 rounded-full flex items-center justify-center text-teal-700 font-semibold text-sm">
+                                {user?.email?.charAt(0).toUpperCase() || 'U'}
+                            </div>
+                            <span className="text-sm font-medium text-gray-700 hidden sm:inline">{user?.email}</span>
+                            <span className="text-xs text-gray-500">({userRole})</span>
+                        </div>
+                        <button
+                            onClick={handleLogout}
+                            className="text-gray-400 hover:text-gray-600 p-2 rounded-full"
+                            title="Logout"
+                        >
+                            <LogOut className="w-5 h-5" />
+                        </button>
                     </div>
                 </div>
-            </div>
+            </header>
 
-            <main className="px-6 py-8">
-                <div className="flex flex-col lg:flex-row gap-8">
-                    
-                    {/* Job List Section (Flex Grow) */}
-                    <div className="lg:w-2/3 flex-shrink-0">
-                        
-                        {/* Search Bar */}
-                        <div className="mb-8 flex items-center border border-gray-300 rounded-lg py-3 px-4 w-full shadow-sm bg-white hover:border-teal-400 transition duration-150">
-                            <input
-                                type="text"
-                                placeholder="Search by job details"
-                                className="flex-grow outline-none text-gray-700 placeholder-gray-400 text-base"
-                            />
-                            <Search className="w-5 h-5 text-teal-500 ml-3 cursor-pointer" />
-                        </div>
-                        
-                        {/* Konten Utama: Job List atau Empty State */}
-                        <MainContent />
-
+            <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+                {/* Header Content */}
+                <div className="mb-8 flex flex-col sm:flex-row justify-between sm:items-center">
+                    <h1 className="text-3xl font-bold text-gray-900 mb-4 sm:mb-0">
+                        Job Listings
+                    </h1>
+                    {/* Search Bar */}
+                    <div className="relative w-full max-w-sm">
+                        <input
+                            type="text"
+                            placeholder="Search for job titles..."
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-teal-500 focus:border-teal-500 text-sm"
+                        />
+                        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
                     </div>
+                </div>
 
-                    {/* Sidebar/Recruitment Card (Fixed Width) */}
-                    <div className="w-full lg:w-96 relative flex-shrink-0">
-                        <div className="p-6 rounded-xl bg-gray-800 shadow-xl relative overflow-hidden h-fit sticky top-[80px]">
-                            <div className="absolute inset-0 bg-gradient-to-br from-gray-900 to-gray-700 opacity-90"></div>
-                            
-                            <div className="relative z-10">
-                                <h3 className="text-xl font-bold text-white mb-3">Recruit the best candidates</h3>
-                                <p className="text-gray-300 text-sm mb-6">Create jobs, invite, and hire with ease</p>
-                                <button 
-                                    onClick={openModal} 
-                                    className="bg-teal-500 hover:bg-teal-600 text-white font-semibold py-3 px-6 rounded-lg transition duration-300 w-full shadow-lg"
-                                >
-                                    Create a new job
-                                </button>
+                <div className="flex flex-col lg:flex-row lg:space-x-8">
+                    {/* Job List / Empty State Area (Variable Width) */}
+                    <div className="flex-1 min-w-0 space-y-6 mb-8 lg:mb-0">
+                        
+                        {/* Job List Header */}
+                        <div className="flex justify-between items-center pb-2 border-b border-gray-200">
+                            <h2 className="text-xl font-semibold text-gray-800">Your Jobs ({filteredJobs.length} of {jobListings.length})</h2>
+                            {/* Filter/Sort Placeholder */}
+                            <div className="text-sm text-gray-500">
+                                <span className="font-medium">Sort by:</span> Latest
                             </div>
                         </div>
+
+                        {/* Konten Utama: Loading, Job List, atau Empty State */}
+                        {isLoading ? (
+                            <LoadingSpinner />
+                        ) : jobListings.length === 0 ? (
+                            // Empty State (No Jobs) - Sesuai dengan desain umum
+                            <div className="text-center p-12 bg-white rounded-xl border-2 border-dashed border-gray-300">
+                                <Briefcase className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                                <h3 className="text-lg font-semibold text-gray-900 mb-2">No job listings found</h3>
+                                <p className="text-sm text-gray-500 mb-6">
+                                    Get started by creating a new job opening to recruit candidates.
+                                </p>
+                                <button 
+                                    onClick={openModal} 
+                                    className="bg-teal-500 hover:bg-teal-600 text-white font-medium py-2 px-4 rounded-lg transition duration-300 shadow-md"
+                                >
+                                    <span className="flex items-center">
+                                        <Briefcase className="w-5 h-5 mr-2" />
+                                        Create New Job
+                                    </span>
+                                </button>
+                            </div>
+                        ) : filteredJobs.length === 0 ? (
+                            // Empty State (Filter/Search Result)
+                            <div className="text-center p-12 bg-white rounded-xl border-2 border-dashed border-gray-300">
+                                <Search className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                                <h3 className="text-lg font-semibold text-gray-900 mb-2">No results for "{searchTerm}"</h3>
+                                <p className="text-sm text-gray-500 mb-6">
+                                    Try adjusting your search term or filters.
+                                </p>
+                                <button 
+                                    onClick={() => setSearchTerm('')} 
+                                    className="bg-gray-100 hover:bg-gray-200 text-gray-800 font-medium py-2 px-4 rounded-lg transition duration-300 shadow-sm text-sm"
+                                >
+                                    Clear Search
+                                </button>
+                            </div>
+                        ) : (
+                            // Job List
+                            <div className="space-y-4">
+                                {filteredJobs.map(job => (
+                                    <JobCard
+                                        key={job.id}
+                                        job={job}
+                                        onManageJob={handleManageJob}
+                                        onApplyJob={handleApplyJob}
+                                        userRole={userRole || undefined}
+                                    />
+                                ))}
+                            </div>
+                        )}
                     </div>
+
+                    {/* Sidebar/Recruitment Card (Fixed Width) - Only for admin */}
+                    {userRole === 'admin' && (
+                        <div className="w-full lg:w-96 relative flex-shrink-0">
+                            <div className="p-6 rounded-xl bg-gray-800 shadow-xl relative overflow-hidden h-fit sticky top-[80px]">
+                                <div className="absolute inset-0 bg-gradient-to-br from-gray-900 to-gray-700 opacity-90"></div>
+
+                                <div className="relative z-10">
+                                    <h3 className="text-xl font-bold text-white mb-3">Recruit the best candidates</h3>
+                                    <p className="text-gray-300 text-sm mb-6">Create jobs, invite, and hire with ease</p>
+                                    <button
+                                        onClick={openModal}
+                                        className="bg-teal-500 hover:bg-teal-600 text-white font-semibold py-3 px-6 rounded-lg transition duration-300 w-full shadow-lg"
+                                    >
+                                        Create a new job
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
                 </div>
             </main>
         </div>
 
-        {/* Komponen Modal */}
+        {/* Komponen Modal Job Opening */}
         <JobOpeningModal 
             isOpen={isModalOpen} 
             onClose={closeModal} 
             onSave={handleSaveToDatabase}
+        />
+
+        {/* Komponen Modal Manage Job */}
+        <ManageJobModal
+            isOpen={isManageModalOpen}
+            onClose={closeManageModal}
+            job={selectedJob}
         />
         </>
     );
