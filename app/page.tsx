@@ -8,14 +8,9 @@ import { firestore, saveData } from '../lib/firebase/service';
 import { collection, getDocs, QueryDocumentSnapshot, doc, getDoc, addDoc } from 'firebase/firestore';
 import { useRouter } from 'next/navigation';
 
-// const appId = process.env.NEXT_PUBLIC_APP_ID || 'default-app-id';
 const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
 
 const db = firestore;
-
-// ==========================================================
-// 1. TIPE DATA & FUNGSIONALITAS FIREBASE
-// ==========================================================
 
 interface JobListing {
     id: string;
@@ -23,9 +18,8 @@ interface JobListing {
     jobType: string;
     minSalary: string;
     maxSalary: string;
-    createdAt: any; 
-    status: 'Active' | 'Inactive' | 'Draft'; 
-    // Field dari modal
+    createdAt: any;
+    status: 'Active' | 'Inactive' | 'Draft';
     description: string;
     numberOfCandidates: string;
     fullNameRequired: 'Mandatory' | 'Optional' | 'Off';
@@ -133,19 +127,11 @@ async function getJobOpenings(): Promise<JobListing[]> {
 }
 
 
-// ==========================================================
-// 2. LOADING SPINNER COMPONENT
-// ==========================================================
-
 const LoadingSpinner: React.FC = () => (
     <div className="flex justify-center items-center py-8">
         <Loader2 className="w-8 h-8 animate-spin text-teal-500" />
     </div>
 );
-
-// ==========================================================
-// 3. KOMPONEN JOB CARD
-// ==========================================================
 
 interface JobCardProps {
     job: JobListing;
@@ -238,14 +224,10 @@ const JobCard: React.FC<JobCardProps> = ({ job, onManageJob, onApplyJob, userRol
     );
 };
 
-// ==========================================================
-// 4. KOMPONEN MODAL (JOB OPENING & MANAGE)
-// ==========================================================
-
 interface JobOpeningModalProps {
     isOpen: boolean;
     onClose: () => void;
-    onSave: (data: any) => Promise<void>; 
+    onSave: (data: any) => Promise<void>;
 }
 
 const initialFormState = {
@@ -383,7 +365,7 @@ const JobOpeningModal: React.FC<JobOpeningModalProps> = ({ isOpen, onClose, onSa
                             </select>
                         </div>
 
-                        {/* Job Description (Textarea) - DILENGKAPI */}
+                        {/* Job Description (Textarea) */}
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor="description">Job Description*</label>
                             <textarea
@@ -399,7 +381,7 @@ const JobOpeningModal: React.FC<JobOpeningModalProps> = ({ isOpen, onClose, onSa
                         </div>
                     </div>
 
-                    {/* Job Salary Section - DILENGKAPI */}
+                    {/* Job Salary Section */}
                     <div className="space-y-4">
                         <h3 className="text-lg font-bold text-gray-800 border-b pb-2 mb-4">Job Salary</h3>
                         {/* Number of Candidates */}
@@ -447,7 +429,7 @@ const JobOpeningModal: React.FC<JobOpeningModalProps> = ({ isOpen, onClose, onSa
                         </div>
                     </div>
 
-                    {/* Minimum Profile Information Required Section - DILENGKAPI */}
+                    {/* Minimum Profile Information Required Section */}
                     <div className='space-y-1'>
                         <h3 className="text-lg font-bold text-gray-800 border-b pb-2 mb-4 pt-4">Minimum Profile Information Required</h3>
                         <div className="space-y-0">
@@ -484,10 +466,6 @@ const JobOpeningModal: React.FC<JobOpeningModalProps> = ({ isOpen, onClose, onSa
         </div>
     );
 };
-
-// ==========================================================
-// 5. KOMPONEN MODAL MANAGE JOB (PLACEHOLDER)
-// ==========================================================
 
 interface ManageJobModalProps {
     isOpen: boolean;
@@ -557,10 +535,6 @@ const ManageJobModal: React.FC<ManageJobModalProps> = ({ isOpen, onClose, job })
         </div>
     );
 }
-
-// ==========================================================
-// 6. KOMPONEN UTAMA (JOB LIST PAGE) - DILENGKAPI
-// ==========================================================
 
 const JobListPage: React.FC = () => {
     const [jobListings, setJobListings] = useState<JobListing[]>([]);

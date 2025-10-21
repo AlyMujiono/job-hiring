@@ -1,22 +1,19 @@
-// service.ts (Perubahan: Tambah export firestore dan fungsi saveData)
 import {
     collection,
     doc,
     getDoc,
     getDocs,
     getFirestore,
-    addDoc,       // DITAMBAHKAN
-    setDoc,       // DITAMBAHKAN
-    updateDoc,    // DITAMBAHKAN
-    deleteDoc,    // DITAMBAHKAN
-    Timestamp     // DITAMBAHKAN
+    addDoc,
+    setDoc,
+    updateDoc,
+    deleteDoc,
+    Timestamp
 } from "firebase/firestore";
 import app from "./init";
 
-// EKSPOR instance firestore agar bisa diimpor dan digunakan di page.tsx
-export const firestore = getFirestore(app) 
+export const firestore = getFirestore(app)
 
-// Fungsi untuk mengambil semua data
 export async function retrieveData(collectionName: string){
     const snapshot = await getDocs(collection(firestore, collectionName));
     const data = snapshot.docs.map((doc) => ({
@@ -27,18 +24,16 @@ export async function retrieveData(collectionName: string){
     return data;
 }
 
-// Fungsi untuk mengambil data berdasarkan ID
 export async function retrieveDataById(collectionName: string, id:string){
     const snapshot = await getDoc(doc(firestore, collectionName, id));
     const data = snapshot.data();
     return data;
 }
 
-// FUNGSI BARU: Untuk menyimpan data dengan ID spesifik
 export async function saveData(collectionName: string, jobData: any, id?: string): Promise<void> {
     const dataToSave = {
         ...jobData,
-        createdAt: Timestamp.fromDate(new Date()), // Gunakan Timestamp Firestore
+        createdAt: Timestamp.fromDate(new Date()),
     };
     try {
         if(id){
@@ -47,14 +42,13 @@ export async function saveData(collectionName: string, jobData: any, id?: string
         } else {
             await addDoc(collection(firestore, collectionName), dataToSave);
         }
-        
+
     } catch (e) {
         console.error("Gagal menambahkan dokumen ke Firestore dari service.ts: ", e);
         throw new Error("Gagal menyimpan data ke database Firebase.");
     }
 }
 
-// FUNGSI BARU: Untuk memperbarui data berdasarkan ID
 export async function updateData(collectionName: string, id: string, updateData: any): Promise<void> {
     try {
         const docRef = doc(firestore, collectionName, id);
@@ -65,7 +59,6 @@ export async function updateData(collectionName: string, id: string, updateData:
     }
 }
 
-// FUNGSI BARU: Untuk menghapus data berdasarkan ID
 export async function deleteData(collectionName: string, id: string): Promise<void> {
     try {
         const docRef = doc(firestore, collectionName, id);
@@ -75,5 +68,3 @@ export async function deleteData(collectionName: string, id: string): Promise<vo
         throw new Error("Gagal menghapus data dari database Firebase.");
     }
 }
-
-// Opsional: Anda bisa memindahkan getJobOpenings ke sini juga.

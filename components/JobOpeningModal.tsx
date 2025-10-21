@@ -1,13 +1,10 @@
-// components/JobOpeningModal.tsx
 'use client';
 
 import React, { useState } from 'react';
 import { X } from 'lucide-react';
 
-// Tipe data untuk status input profil
 type ProfileStatus = 'Mandatory' | 'Optional' | 'Off';
 
-// Tipe data untuk struktur formulir
 interface JobFormState {
   jobName: string;
   jobType: string;
@@ -21,7 +18,7 @@ interface JobFormState {
 interface JobOpeningModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (data: JobFormState) => Promise<void>; // Fungsi simpan ke Firebase
+  onSave: (data: JobFormState) => Promise<void>;
 }
 
 const JobOpeningModal: React.FC<JobOpeningModalProps> = ({ isOpen, onClose, onSave }) => {
