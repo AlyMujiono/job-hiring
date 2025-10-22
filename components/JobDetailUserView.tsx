@@ -15,7 +15,7 @@ interface JobListing {
 
 interface JobDetailUserViewProps {
     job: JobListing;
-    onApply: (job: JobListing) => Promise<void>;
+    onApply: (job: any) => Promise<void>;
 }
 
 // Helper function to format salary

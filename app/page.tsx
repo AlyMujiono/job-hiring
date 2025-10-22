@@ -64,8 +64,9 @@ async function getJobOpenings(userRole: 'admin' | 'user'): Promise<JobListing[]>
         const querySnapshot = await getDocs(jobsQuery);
 
         const jobListings: JobListing[] = [];
-        querySnapshot.forEach((doc: QueryDocumentSnapshot) => {
-            const data = doc.data();
+
+        querySnapshot.forEach((doc: any) => {
+            const data = doc.data(); 
             jobListings.push({
                 id: doc.id,
                 jobName: data.jobName || 'Unknown Job',
@@ -251,10 +252,10 @@ const JobCard: React.FC<JobCardProps> = ({ job, onManageJob, onSelectJob, userRo
                     <MapPin className="w-3 h-3 text-gray-400" />
                     <span>{job.location}</span>
                 </div>
-                 {/* Rentang Gaji */}
-                <p className="text-sm font-semibold text-gray-800">
-                    Rp{formatSalary(job.minSalary)} - Rp{formatSalary(job.maxSalary)}
-                </p>
+ {/* Rentang Gaji */}
+<p className="text-sm font-semibold text-gray-800">
+    Rp {formatSalary(job.minSalary)} - Rp {formatSalary(job.maxSalary)}
+</p>
             </div>
         </div>
     );
@@ -271,13 +272,13 @@ interface JobOpeningModalProps {
 
 const initialFormState = {
     jobName: '', 
-    jobType: '', 
-    minSalary: '', 
-    maxSalary: '', 
-    location: ' ', 
-    companyName: '', 
-    description: ``, 
-    numberOfCandidates: '', 
+    jobType: '', // DIUBAH AGAR ADA DEFAULT VALUE
+    minSalary: '', // DIUBAH AGAR ADA DEFAULT VALUE
+    maxSalary: '', // DIUBAH AGAR ADA DEFAULT VALUE
+    location: '', // DIUBAH AGAR ADA DEFAULT VALUE
+    companyName: '', // DIUBAH AGAR ADA DEFAULT VALUE
+    description: ``, // DIUBAH AGAR ADA DEFAULT VALUE
+    numberOfCandidates: '', // DIUBAH AGAR ADA DEFAULT VALUE
     fullNameRequired: 'Mandatory' as 'Mandatory' | 'Optional' | 'Off',
     photoProfileRequired: 'Optional' as 'Mandatory' | 'Optional' | 'Off',
     genderRequired: 'Mandatory' as 'Mandatory' | 'Optional' | 'Off',
@@ -385,7 +386,7 @@ const JobOpeningModal: React.FC<JobOpeningModalProps> = ({ isOpen, onClose, onSa
                                 onChange={handleChange}
                                 required
                                 className="w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-teal-500 focus:border-teal-500 text-sm"
-                                placeholder="Ex."
+                                placeholder=""
                             />
                         </div>
                         {/* Job Name */}
@@ -399,7 +400,7 @@ const JobOpeningModal: React.FC<JobOpeningModalProps> = ({ isOpen, onClose, onSa
                                 onChange={handleChange}
                                 required
                                 className="w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-teal-500 focus:border-teal-500 text-sm"
-                                placeholder="Ex."
+                                placeholder=""
                             />
                         </div>
                         {/* Location (BARU) */}
@@ -413,7 +414,7 @@ const JobOpeningModal: React.FC<JobOpeningModalProps> = ({ isOpen, onClose, onSa
                                 onChange={handleChange}
                                 required
                                 className="w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-teal-500 focus:border-teal-500 text-sm"
-                                placeholder="Ex."
+                                placeholder=""
                             />
                         </div>
                         {/* Job Type */}
@@ -443,7 +444,7 @@ const JobOpeningModal: React.FC<JobOpeningModalProps> = ({ isOpen, onClose, onSa
                                 rows={8} 
                                 required
                                 className="w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:ring-teal-500 focus:border-teal-500 resize-none text-sm"
-                                placeholder="Ex."
+                                placeholder=""
                             />
                         </div>
                     </div>
@@ -480,7 +481,7 @@ const JobOpeningModal: React.FC<JobOpeningModalProps> = ({ isOpen, onClose, onSa
                                         onChange={handleSalaryChange}
                                         required
                                         className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-teal-500 focus:border-teal-500 text-sm"
-                                        placeholder="Ex."
+                                        placeholder=""
                                     />
                                 </div>
                             </div>
@@ -496,7 +497,7 @@ const JobOpeningModal: React.FC<JobOpeningModalProps> = ({ isOpen, onClose, onSa
                                         onChange={handleSalaryChange}
                                         required
                                         className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-teal-500 focus:border-teal-500 text-sm"
-                                        placeholder="Ex."
+                                        placeholder=""
                                     />
                                 </div>
                             </div>
@@ -722,6 +723,7 @@ const JobListPage: React.FC = () => {
                     </div>
                     
                     {/* Tombol Create New Job di Kanan (Hanya Admin - Desktop) */}
+                    {/* Hapus button di sini agar tidak duplikat dengan sidebar Admin */}
                     {/* {userRole === 'admin' && (
                         <button 
                             onClick={openModal} 
@@ -757,7 +759,7 @@ const JobListPage: React.FC = () => {
                                 </div>
                             </div>
                             {/* Tombol Create New Job di Mobile (Jika Admin) */}
-                             <button 
+                            <button 
                                 onClick={openModal} 
                                 className="sm:hidden mt-4 w-full bg-teal-500 hover:bg-teal-600 text-white font-medium py-3 px-4 rounded-lg transition duration-300 shadow-md"
                             >
