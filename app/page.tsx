@@ -1,13 +1,15 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { Search, X, Loader2, Bell, Briefcase, LogOut, Check } from 'lucide-react';
+import { Search, X, Loader2, Bell, Briefcase, LogOut, Check, MapPin } from 'lucide-react'; 
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { auth } from '../lib/firebase/init';
-// Mengubah import firestore untuk menyertakan updateDoc, where, dan query
 import { firestore, saveData } from '../lib/firebase/service';
 import { collection, getDocs, QueryDocumentSnapshot, doc, getDoc, addDoc, where, query } from 'firebase/firestore';
 import { useRouter } from 'next/navigation';
+
+// PENTING: Import kembali komponen untuk tampilan detail user
+import JobDetailUserView from '../components/JobDetailUserView'; // ASUMSI PATH KOMPONEN
 
 const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
 
@@ -24,9 +26,11 @@ interface JobListing {
     minSalary: string;
     maxSalary: string;
     createdAt: any;
-    status: 'Active' | 'Inactive' | 'Draft'; // Status pekerjaan
+    status: 'Active' | 'Inactive' | 'Draft';
     description: string;
     numberOfCandidates: string;
+    location: string; 
+    companyName: string; 
     fullNameRequired: 'Mandatory' | 'Optional' | 'Off';
     photoProfileRequired: 'Mandatory' | 'Optional' | 'Off';
     genderRequired: 'Mandatory' | 'Optional' | 'Off';
@@ -48,25 +52,19 @@ async function getJobOpenings(userRole: 'admin' | 'user'): Promise<JobListing[]>
     if (!db) return [];
     try {
         const jobsCollectionPath = `artifacts/${appId}/public/data/job_openings`;
-        // Gunakan CollectionReference sebagai basis
         const jobsCollectionRef = collection(db, jobsCollectionPath);
 
-        // Deklarasikan variabel untuk Query/CollectionReference. Gunakan 'any' 
-        // untuk mengatasi TypeScript error saat menampung dua tipe yang berbeda.
-        let jobsQuery: any = jobsCollectionRef; 
+        let jobsQuery: any = jobsCollectionRef;
 
         // HANYA TAMPILKAN YANG ACTIVE UNTUK USER BIASA
         if (userRole === 'user') {
-            // FIX: Gunakan query() dengan CollectionReference sebagai argumen pertama
-            // Ini akan mengembalikan Query yang kemudian ditugaskan ke jobsQuery.
             jobsQuery = query(jobsCollectionRef, where('status', '==', 'Active'));
         }
-        // ADMIN MENDAPATKAN SEMUA (Active, Inactive, Draft)
 
-        const querySnapshot = await getDocs(jobsQuery); 
-        
+        const querySnapshot = await getDocs(jobsQuery);
+
         const jobListings: JobListing[] = [];
-        querySnapshot.forEach((doc: QueryDocumentSnapshot) => { 
+        querySnapshot.forEach((doc: QueryDocumentSnapshot) => {
             const data = doc.data();
             jobListings.push({
                 id: doc.id,
@@ -78,6 +76,8 @@ async function getJobOpenings(userRole: 'admin' | 'user'): Promise<JobListing[]>
                 status: data.status || 'Draft',
                 description: data.description || '',
                 numberOfCandidates: data.numberOfCandidates || '1',
+                location: data.location || 'Remote', 
+                companyName: data.companyName || '', 
                 fullNameRequired: data.fullNameRequired || 'Mandatory',
                 photoProfileRequired: data.photoProfileRequired || 'Optional',
                 genderRequired: data.genderRequired || 'Mandatory',
@@ -98,12 +98,10 @@ async function getJobOpenings(userRole: 'admin' | 'user'): Promise<JobListing[]>
 
     } catch (e) {
         console.error("Gagal mengambil data pekerjaan: ", e);
-        return []; 
+        return [];
     }
 }
 
-
-// ... Fungsi lain seperti applyToJob, saveJobOpening (DIPERTAHANKAN)
 
 async function applyToJob(jobId: string, userId: string, applicationData: any): Promise<void> {
     if (!db) throw new Error("Database tidak terinisialisasi.");
@@ -124,12 +122,14 @@ async function saveJobOpening(jobData: any): Promise<void> {
     const dataToSave = {
         ...jobData,
         createdAt: new Date(),
-        status: 'Active', 
+        status: 'Active',
+        location: jobData.location || 'Remote', 
+        companyName: jobData.companyName || '', 
     };
     await saveData(jobsCollectionPath, dataToSave);
 }
 
-// ... LoadingSpinner, getStatusClasses, formatDate, formatSalary (DIPERTAHANKAN)
+
 const LoadingSpinner: React.FC = () => (
     <div className="flex justify-center items-center py-8">
         <Loader2 className="w-8 h-8 animate-spin text-teal-500" />
@@ -138,10 +138,10 @@ const LoadingSpinner: React.FC = () => (
 
 const getStatusClasses = (status: JobListing['status']) => {
     switch (status) {
-        case 'Active': return 'bg-green-100 text-green-700';
-        case 'Inactive': return 'bg-red-100 text-red-700';
-        case 'Draft': return 'bg-yellow-100 text-yellow-700';
-        default: return 'bg-gray-100 text-gray-700';
+        case 'Active': return 'bg-green-100 text-green-700 border border-green-200';
+        case 'Inactive': return 'bg-red-100 text-red-700 border border-red-200';
+        case 'Draft': return 'bg-yellow-100 text-yellow-700 border border-yellow-200';
+        default: return 'bg-gray-100 text-gray-700 border border-gray-200';
     }
 }
 
@@ -159,75 +159,109 @@ const formatSalary = (num: string) => {
 }
 
 
-// KOMPONEN JobCard (DIPERBAIKI: Hapus tombol toggle status)
+// KOMPONEN JobCard - LOGIKA GANDA (ADMIN & USER) DIBUAT DENGAN BENAR
 interface JobCardProps {
     job: JobListing;
-    onManageJob: (job: JobListing) => void;
-    onApplyJob?: (job: JobListing) => void;
+    onManageJob: (job: JobListing) => void; // Hanya dipanggil oleh Admin
+    onSelectJob: (job: JobListing) => void; // Hanya dipanggil oleh User
     userRole?: 'admin' | 'user';
+    isSelected: boolean; // Untuk User View
 }
 
-const JobCard: React.FC<JobCardProps> = ({ job, onManageJob, onApplyJob, userRole }) => {
-    const statusClasses = getStatusClasses(job.status);
-    const formattedDate = formatDate(job.createdAt);
+const JobCard: React.FC<JobCardProps> = ({ job, onManageJob, onSelectJob, userRole, isSelected }) => {
     const minSalary = `Rp ${formatSalary(job.minSalary)}`;
     const maxSalary = `Rp ${formatSalary(job.maxSalary)}`;
+    const statusClasses = getStatusClasses(job.status);
+    const formattedDate = formatDate(job.createdAt);
+
+    // =================================================================
+    // Tampilan untuk Admin (Gambar 1)
+    // =================================================================
+    if (userRole === 'admin') {
+        return (
+            <div className="border border-gray-200 bg-white shadow-sm rounded-xl py-4 flex justify-between items-center hover:shadow-md transition duration-150 px-4 cursor-pointer"
+                onClick={() => onManageJob(job)} 
+            >
+                <div className="space-y-1 w-full">
+                    {/* Status & Tanggal */}
+                    <div className="flex items-center space-x-3">
+                        <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${statusClasses}`}>
+                            {job.status}
+                        </span>
+                        <span className="text-sm text-gray-500">
+                            started on {formattedDate}
+                        </span>
+                    </div>
+
+                    {/* Judul Pekerjaan */}
+                    <h3 className="text-xl font-semibold text-gray-800 pt-1">
+                        {job.jobName}
+                    </h3>
+                    
+                    {/* Rentang Gaji */}
+                    <p className="text-sm text-gray-600">
+                        <span className="font-medium text-gray-800">{minSalary} - {maxSalary}</span>
+                    </p>
+                </div>
+
+                {/* Tombol Aksi Admin */}
+                <button
+                    className="self-center bg-teal-500 text-white text-sm font-medium py-1 px-3 rounded-lg hover:bg-teal-600 transition duration-150 shadow-sm flex-shrink-0 ml-4"
+                    onClick={(e) => { e.stopPropagation(); onManageJob(job); }}
+                >
+                    Manage Job
+                </button>
+            </div>
+        );
+    }
+
+    // =================================================================
+    // Tampilan untuk User (Gambar 2 - List Kiri)
+    // =================================================================
+    const userCardClass = isSelected 
+        ? 'border-teal-500 bg-teal-50 shadow-lg' 
+        : 'border-gray-200 bg-white hover:border-gray-300 hover:bg-gray-50';
 
     return (
-        <div className="border border-gray-200 bg-white shadow-sm rounded-xl py-4 flex justify-between items-start hover:shadow-md transition duration-150 px-4 cursor-pointer"
-            onClick={userRole === 'admin' ? () => onManageJob(job) : onApplyJob ? () => onApplyJob(job) : undefined}
+        <div className={`border shadow-sm rounded-xl py-4 transition duration-150 px-4 cursor-pointer ${userCardClass}`}
+            onClick={() => onSelectJob(job)}
         >
-            <div className="space-y-1 w-full">
-                <div className="flex items-center space-x-3">
-                    {/* Status Badge - TETAP DITAMPILKAN UNTUK ADMIN/USER (tapi user hanya melihat yang Active) */}
-                    <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${statusClasses}`}>
-                        {job.status}
-                    </span>
-                    {/* Tanggal Mulai */}
-                    <span className="text-sm text-gray-500">
-                        started on {formattedDate}
-                    </span>
+            <div className="flex items-start space-x-3">
+                {/* Ikon Perusahaan (Simulasi) */}
+                <div className={`flex-shrink-0 w-8 h-8 ${isSelected ? 'bg-teal-100 text-teal-700' : 'bg-gray-100 text-gray-600'} rounded-lg flex items-center justify-center border border-gray-200 mt-0.5`}>
+                    <Briefcase className="w-4 h-4" />
                 </div>
-
-                {/* Judul Pekerjaan */}
-                <h3 className="text-xl font-semibold text-gray-800 pt-1">
-                    {job.jobName}
-                </h3>
-
-                {/* Rentang Gaji */}
-                <p className="text-sm text-gray-600">
-                    <span className="font-medium text-gray-800">{minSalary} - {maxSalary}</span>
-                </p>
+                
+                {/* Detail Pekerjaan */}
+                <div className="flex-1 min-w-0">
+                    {/* Judul Pekerjaan */}
+                    <h3 className="text-base font-semibold text-gray-800">
+                        {job.jobName}
+                    </h3>
+                    
+                    {/* Nama Perusahaan */}
+                    <p className="text-xs text-gray-500">{job.companyName}</p>
+                </div>
             </div>
 
-            {/* Tombol Aksi */}
-            {userRole === 'admin' ? (
-                // ADMIN ACTIONS
-                <div className="flex flex-col items-end space-y-2 flex-shrink-0 ml-4">
-                    {/* Tombol MANAGE JOB */}
-                    <button
-                        className="self-center bg-teal-500 text-white text-sm font-medium py-1 px-3 rounded-lg hover:bg-teal-600 transition duration-150 shadow-sm"
-                        onClick={(e) => { e.stopPropagation(); onManageJob(job); }}
-                    >
-                        Manage Job
-                    </button>
-                    {/* Tombol MANAGE STATUS DIHAPUS */}
+            {/* Lokasi & Gaji */}
+            <div className="pt-2 pl-11 space-y-1">
+                {/* Lokasi */}
+                <div className="flex items-center text-xs text-gray-600 space-x-1">
+                    <MapPin className="w-3 h-3 text-gray-400" />
+                    <span>{job.location}</span>
                 </div>
-            ) : (
-                // USER ACTION
-                <button
-                    className="self-center bg-blue-50 text-blue-600 text-sm font-medium py-1 px-3 rounded-lg hover:bg-blue-100 transition duration-150 shadow-sm border border-blue-200 flex-shrink-0 ml-4"
-                    onClick={(e) => { e.stopPropagation(); onApplyJob && onApplyJob(job); }}
-                >
-                    Apply Now
-                </button>
-            )}
+                 {/* Rentang Gaji */}
+                <p className="text-sm font-semibold text-gray-800">
+                    Rp{formatSalary(job.minSalary)} - Rp{formatSalary(job.maxSalary)}
+                </p>
+            </div>
         </div>
     );
 };
 
 
-// ... JobOpeningModal dan SuccessToast (DIPERTAHANKAN)
+// JobOpeningModal (SAMA SEPERTI SEBELUMNYA)
 interface JobOpeningModalProps {
     isOpen: boolean;
     onClose: () => void;
@@ -240,7 +274,8 @@ const initialFormState = {
     jobType: '', 
     minSalary: '', 
     maxSalary: '', 
-    location: '', 
+    location: ' ', 
+    companyName: '', 
     description: ``, 
     numberOfCandidates: '', 
     fullNameRequired: 'Mandatory' as 'Mandatory' | 'Optional' | 'Off',
@@ -262,7 +297,7 @@ const JobOpeningModal: React.FC<JobOpeningModalProps> = ({ isOpen, onClose, onSa
 
     useEffect(() => {
         if (!isOpen) {
-            setForm(initialFormState); 
+            setForm(initialFormState);
             setSaveError('');
         }
     }, [isOpen]);
@@ -303,6 +338,7 @@ const JobOpeningModal: React.FC<JobOpeningModalProps> = ({ isOpen, onClose, onSa
         </div>
     ), [form]);
 
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setSaveError('');
@@ -338,6 +374,21 @@ const JobOpeningModal: React.FC<JobOpeningModalProps> = ({ isOpen, onClose, onSa
                     
                     {/* Job Detail Section */}
                     <div className="space-y-4">
+                        {/* Company Name (BARU) */}
+                         <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor="companyName">Company Name*</label>
+                            <input
+                                id="companyName"
+                                name="companyName"
+                                type="text"
+                                value={form.companyName}
+                                onChange={handleChange}
+                                required
+                                className="w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-teal-500 focus:border-teal-500 text-sm"
+                                placeholder="Ex."
+                            />
+                        </div>
+                        {/* Job Name */}
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor="jobName">Job Name*</label>
                             <input
@@ -348,10 +399,24 @@ const JobOpeningModal: React.FC<JobOpeningModalProps> = ({ isOpen, onClose, onSa
                                 onChange={handleChange}
                                 required
                                 className="w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-teal-500 focus:border-teal-500 text-sm"
-                                placeholder="Front End Developer"
+                                placeholder="Ex."
                             />
                         </div>
-
+                        {/* Location (BARU) */}
+                         <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor="location">Location*</label>
+                            <input
+                                id="location"
+                                name="location"
+                                type="text"
+                                value={form.location}
+                                onChange={handleChange}
+                                required
+                                className="w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-teal-500 focus:border-teal-500 text-sm"
+                                placeholder="Ex."
+                            />
+                        </div>
+                        {/* Job Type */}
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor="jobType">Job Type*</label>
                             <select
@@ -367,7 +432,7 @@ const JobOpeningModal: React.FC<JobOpeningModalProps> = ({ isOpen, onClose, onSa
                                 <option value="Internship">Internship</option>
                             </select>
                         </div>
-
+                        {/* Description */}
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor="description">Job Description*</label>
                             <textarea
@@ -378,7 +443,7 @@ const JobOpeningModal: React.FC<JobOpeningModalProps> = ({ isOpen, onClose, onSa
                                 rows={8} 
                                 required
                                 className="w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:ring-teal-500 focus:border-teal-500 resize-none text-sm"
-                                placeholder="- Develop, test, and maintain responsive, high-performance web applications..."
+                                placeholder="Ex."
                             />
                         </div>
                     </div>
@@ -415,7 +480,7 @@ const JobOpeningModal: React.FC<JobOpeningModalProps> = ({ isOpen, onClose, onSa
                                         onChange={handleSalaryChange}
                                         required
                                         className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-teal-500 focus:border-teal-500 text-sm"
-                                        placeholder="7.000.000"
+                                        placeholder="Ex."
                                     />
                                 </div>
                             </div>
@@ -431,7 +496,7 @@ const JobOpeningModal: React.FC<JobOpeningModalProps> = ({ isOpen, onClose, onSa
                                         onChange={handleSalaryChange}
                                         required
                                         className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-teal-500 focus:border-teal-500 text-sm"
-                                        placeholder="8.000.000"
+                                        placeholder="Ex."
                                     />
                                 </div>
                             </div>
@@ -504,14 +569,13 @@ const JobListPage: React.FC = () => {
     const [user, setUser] = useState<UserAuth | null>(null); 
     const [userRole, setUserRole] = useState<'admin' | 'user' | null>(null);
     const [isToastVisible, setIsToastVisible] = useState(false); 
+    const [selectedJob, setSelectedJob] = useState<JobListing | null>(null); // State untuk job yang dipilih (User View)
     
     const router = useRouter();
 
     useEffect(() => {
         const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
             if (currentUser) {
-                // Simulasi/ambil data role
-                // Gunakan doc dan getDoc dari firebase/firestore untuk mengambil data
                 const userDocRef = doc(db, 'users', currentUser.uid); 
                 const userDoc = await getDoc(userDocRef);
                 const role = userDoc.exists() ? userDoc.data().role : 'user';
@@ -525,12 +589,17 @@ const JobListPage: React.FC = () => {
         return () => unsubscribe();
     }, [router]);
 
-    // FUNGSI FETCH JOB YANG DIPERBARUI
     const handleJobFetch = useCallback(async (role: 'admin' | 'user') => {
         setIsLoading(true);
         try {
-            const jobs = await getJobOpenings(role); // Meneruskan role ke fungsi fetch
+            const jobs = await getJobOpenings(role); 
             setJobListings(jobs);
+            // Kunci Job Pertama jika User dan ada pekerjaan
+            if (role === 'user' && jobs.length > 0) {
+                setSelectedJob(jobs[0]);
+            } else if (role === 'user' && jobs.length === 0) {
+                 setSelectedJob(null);
+            }
         } catch (error) {
             console.error("Gagal mengambil data:", error);
         } finally {
@@ -544,6 +613,8 @@ const JobListPage: React.FC = () => {
         }
     }, [handleJobFetch, userRole]);
 
+    // Logika Toast dan Save Database sama...
+
     const handleToastSuccess = () => {
         setIsToastVisible(true);
         const timer = setTimeout(() => {
@@ -555,7 +626,7 @@ const JobListPage: React.FC = () => {
     const handleSaveToDatabase = async (data: any) => {
         try {
             await saveJobOpening(data);
-            if (userRole) await handleJobFetch(userRole); // Reload data setelah save
+            if (userRole) await handleJobFetch(userRole); 
         } catch (error) {
             throw error;
         }
@@ -564,17 +635,15 @@ const JobListPage: React.FC = () => {
     const openModal = () => setIsModalOpen(true);
     const closeModal = () => setIsModalOpen(false);
 
-    // FUNGSI HANDLE UPDATE STATUS DIHAPUS DARI SINI
-    // Pindah ke ManageCandidatePage
-
     const handleApplyJob = async (job: JobListing) => {
         if (!user) return;
         try {
+            // Logika simulasi apply job
             await applyToJob(job.id, user.uid, {
                 name: user.email, 
                 email: user.email,
             });
-            alert('Applied successfully!');
+            alert(`Successfully applied to ${job.jobName} at ${job.companyName || ''}!`);
         } catch (error) {
             console.error('Apply failed:', error);
         }
@@ -586,12 +655,18 @@ const JobListPage: React.FC = () => {
     };
 
     const filteredJobs = jobListings.filter(job =>
-        job.jobName.toLowerCase().includes(searchTerm.toLowerCase())
+        job.jobName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        job.companyName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        job.location.toLowerCase().includes(searchTerm.toLowerCase())
     );
 
-    // FUNGSI MANAGE JOB (NAVIAGASI)
     const handleManageJob = (job: JobListing) => {
         router.push(`/manage-candidate?jobId=${job.id}&jobName=${job.jobName}`);
+    };
+
+    // Fungsi untuk memilih pekerjaan (Hanya untuk User View)
+    const handleSelectJob = (job: JobListing) => {
+        setSelectedJob(job);
     };
     
     return (
@@ -631,87 +706,41 @@ const JobListPage: React.FC = () => {
             </header>
 
             <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-                {/* Header Content */}
+                {/* Header Content & Search */}
                 <div className="mb-8 flex flex-col sm:flex-row justify-between sm:items-center">
                     
-                    {/* Search Bar */}
-                    <div className="relative w-full max-w-sm">
+                    {/* Search Bar - Lebar menyesuaikan role */}
+                    <div className={`relative w-full ${userRole === 'admin' ? 'max-w-lg' : 'max-w-2xl mx-auto lg:mx-0'}`}> 
                         <input
                             type="text"
-                            placeholder="Search by job details"
+                            placeholder={userRole === 'admin' ? "Search by job details" : "Search by job name, location, or company..."}
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
                             className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-teal-500 focus:border-teal-500 text-sm"
                         />
                         <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
                     </div>
+                    
+                    {/* Tombol Create New Job di Kanan (Hanya Admin - Desktop) */}
+                    {/* {userRole === 'admin' && (
+                        <button 
+                            onClick={openModal} 
+                            className="hidden sm:inline-flex bg-teal-500 hover:bg-teal-600 text-white font-medium py-2 px-4 rounded-lg transition duration-300 shadow-md ml-4"
+                        >
+                            <span className="flex items-center">
+                                <Briefcase className="w-5 h-5 mr-2" />
+                                Create New Job
+                            </span>
+                        </button>
+                    )} */}
                 </div>
 
-                <div className="flex flex-col lg:flex-row lg:space-x-8">
-                    {/* Job List / Empty State Area */}
-                    <div className="flex-1 min-w-0 space-y-6 mb-8 lg:mb-0">
-                        
-                        {isLoading ? (
-                            <LoadingSpinner />
-                        ) : jobListings.length === 0 ? (
-                            // Empty State
-                            <div className="text-center p-12 bg-white rounded-xl border-2 border-dashed border-gray-300">
-                                <Briefcase className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                                <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                                    {userRole === 'admin' ? 'No job listings found' : 'No active job vacancies'}
-                                </h3>
-                                <p className="text-sm text-gray-500 mb-6">
-                                    {userRole === 'admin' 
-                                        ? 'Get started by creating a new job opening to recruit candidates.'
-                                        : 'Please check back later for new openings.'
-                                    }
-                                </p>
-                                {/* Tombol hanya untuk Admin */}
-                                {userRole === 'admin' && (
-                                    <button 
-                                        onClick={openModal} 
-                                        className="bg-teal-500 hover:bg-teal-600 text-white font-medium py-2 px-4 rounded-lg transition duration-300 shadow-md"
-                                    >
-                                        <span className="flex items-center">
-                                            <Briefcase className="w-5 h-5 mr-2" />
-                                            Create New Job
-                                        </span>
-                                    </button>
-                                )}
-                            </div>
-                        ) : filteredJobs.length === 0 ? (
-                            // Empty State (Filter/Search Result)
-                            <div className="text-center p-12 bg-white rounded-xl border-2 border-dashed border-gray-300">
-                                <Search className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                                <h3 className="text-lg font-semibold text-gray-900 mb-2">No results for "{searchTerm}"</h3>
-                                <p className="text-sm text-gray-500 mb-6">
-                                    Try adjusting your search term or filters.
-                                </p>
-                                <button 
-                                    onClick={() => setSearchTerm('')} 
-                                    className="bg-gray-100 hover:bg-gray-200 text-gray-800 font-medium py-2 px-4 rounded-lg transition duration-300 shadow-sm text-sm"
-                                >
-                                    Clear Search
-                                </button>
-                            </div>
-                        ) : (
-                            // Job List
-                            <div className="space-y-4">
-                                {filteredJobs.map(job => (
-                                    <JobCard
-                                        key={job.id}
-                                        job={job}
-                                        onManageJob={handleManageJob} 
-                                        onApplyJob={handleApplyJob}
-                                        userRole={userRole || undefined}
-                                    />
-                                ))}
-                            </div>
-                        )}
-                    </div>
-
-                    {/* Sidebar/Recruitment Card (Hanya untuk Admin) */}
+                {/* Main Content Area: Berubah berdasarkan Role */}
+                <div className={`flex flex-col ${userRole === 'admin' ? 'lg:flex-row-reverse lg:space-x-reverse lg:space-x-8' : 'lg:flex-row lg:space-x-8'}`}>
+                    
+                    {/* Kolom Kanan/Sidebar Area (Admin) atau Detail Job (User) */}
                     {userRole === 'admin' && (
+                        // Admin Sidebar/Card (Gambar 1)
                         <div className="w-full lg:w-96 relative flex-shrink-0">
                             <div className="p-6 rounded-xl bg-gray-800 shadow-xl relative overflow-hidden h-fit sticky top-[80px]">
                                 <div className="absolute inset-0 bg-gradient-to-br from-gray-900 to-gray-700 opacity-30"></div>
@@ -727,8 +756,75 @@ const JobListPage: React.FC = () => {
                                     </button>
                                 </div>
                             </div>
+                            {/* Tombol Create New Job di Mobile (Jika Admin) */}
+                             <button 
+                                onClick={openModal} 
+                                className="sm:hidden mt-4 w-full bg-teal-500 hover:bg-teal-600 text-white font-medium py-3 px-4 rounded-lg transition duration-300 shadow-md"
+                            >
+                                <span className="flex items-center justify-center">
+                                    <Briefcase className="w-5 h-5 mr-2" />
+                                    Create New Job
+                                </span>
+                            </button>
                         </div>
                     )}
+                    
+                    {userRole === 'user' && (
+                        // Tampilan Detail Job untuk User (Gambar 2 - Kolom Kanan)
+                        <div className="flex-1 min-w-0 mt-8 lg:mt-0 lg:order-2"> {/* order-2 menempatkan detail di kanan */}
+                            {selectedJob ? (
+                                <JobDetailUserView job={selectedJob} onApply={handleApplyJob} />
+                            ) : (
+                                <div className="text-center p-12 bg-white rounded-xl border-2 border-dashed border-gray-300 lg:sticky lg:top-[80px]">
+                                    <p className="text-lg text-gray-500">Select a job from the list to view the details.</p>
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    {/* Kolom Kiri/Job List Area (W3/5 User, Flex-1 Admin) */}
+                    <div className={`${userRole === 'user' ? 'w-full lg:w-1/3 min-w-[300px] max-w-full lg:sticky lg:top-[80px] lg:h-[calc(100vh-100px)] lg:overflow-y-auto pr-2 lg:order-1' : 'flex-1 min-w-0 lg:order-1'} space-y-4 mb-8 lg:mb-0`}>
+
+                        {isLoading ? (
+                            <LoadingSpinner />
+                        ) : jobListings.length === 0 || filteredJobs.length === 0 ? (
+                            // Empty State
+                            <div className="text-center p-12 bg-white rounded-xl border-2 border-dashed border-gray-300">
+                                <Briefcase className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                                <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                                    {jobListings.length === 0 ? (userRole === 'admin' ? 'No job listings found' : 'No active job vacancies') : `No results for "${searchTerm}"`}
+                                </h3>
+                                {/* Tombol hanya untuk Admin (jika list kosong) */}
+                                {jobListings.length === 0 && userRole === 'admin' && (
+                                    <button 
+                                        onClick={openModal} 
+                                        className="mt-4 bg-teal-500 hover:bg-teal-600 text-white font-medium py-2 px-4 rounded-lg transition duration-300 shadow-md"
+                                    >
+                                        <span className="flex items-center">
+                                            <Briefcase className="w-5 h-5 mr-2" />
+                                            Create New Job
+                                        </span>
+                                    </button>
+                                )}
+                            </div>
+                        ) : (
+                            // Job List
+                            <div className="space-y-4">
+                                {userRole === 'admin' && <h2 className="text-2xl font-bold text-gray-800 mb-4">Job List</h2>}
+                                {filteredJobs.map(job => (
+                                    <JobCard
+                                        key={job.id}
+                                        job={job}
+                                        onManageJob={handleManageJob}
+                                        onSelectJob={handleSelectJob}
+                                        userRole={userRole || undefined}
+                                        // Highlight card jika dipilih (hanya untuk User View)
+                                        isSelected={userRole === 'user' ? job.id === selectedJob?.id : false}
+                                    />
+                                ))}
+                            </div>
+                        )}
+                    </div>
                 </div>
             </main>
         </div>
