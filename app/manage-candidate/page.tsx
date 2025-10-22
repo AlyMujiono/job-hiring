@@ -1,13 +1,13 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { X, Loader2, Bell, Clock, Briefcase, ChevronLeft, LogOut, Check } from 'lucide-react'; 
+import React, { useState, useEffect, Suspense } from 'react';
+import { X, Loader2, Bell, Clock, Briefcase, ChevronLeft, LogOut, Check } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { auth } from '../../lib/firebase/init';
 // Import firestore, doc, getDoc, updateDoc
-import { firestore } from '../../lib/firebase/service'; 
-import { doc, getDoc, updateDoc } from 'firebase/firestore'; 
+import { firestore } from '../../lib/firebase/service';
+import { doc, getDoc, updateDoc } from 'firebase/firestore';
 
 const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
 const db = firestore;
@@ -362,4 +362,10 @@ const ManageCandidatePage: React.FC = () => {
     );
 }
 
-export default ManageCandidatePage;
+const ManageCandidatePageWrapper = () => (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-gray-50"><Loader2 className="w-10 h-10 animate-spin text-teal-500" /></div>}>
+        <ManageCandidatePage />
+    </Suspense>
+);
+
+export default ManageCandidatePageWrapper;
