@@ -12,6 +12,10 @@ const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
 
 const db = firestore;
 
+// ==========================================================
+// 1. TIPE DATA & FUNGSIONALITAS FIREBASE (DIPERTAHANKAN)
+// ==========================================================
+
 interface JobListing {
     id: string;
     jobName: string;
@@ -55,7 +59,6 @@ const dummyCandidates: Candidate[] = [
     { id: 'c3', name: 'Budi Santoso', stage: 'Screening', appliedDate: '18 Oct 2025', email: 'budi@example.com', phoneNumber: '0814...', linkedin: 'linkedin.com/in/budi' },
 ];
 
-// Fungsi untuk apply to job (untuk user)
 async function applyToJob(jobId: string, userId: string, applicationData: any): Promise<void> {
     if (!db) throw new Error("Database tidak terinisialisasi.");
     const applicationsCollectionPath = `artifacts/${appId}/public/data/job_applications`;
@@ -72,16 +75,14 @@ async function applyToJob(jobId: string, userId: string, applicationData: any): 
 async function saveJobOpening(jobData: any): Promise<void> {
     if (!db) throw new Error("Database tidak terinisialisasi.");
     const jobsCollectionPath = `artifacts/${appId}/public/data/job_openings`;
-    // Tambahkan createdAt di sini agar sesuai dengan JobListing interface
     const dataToSave = {
         ...jobData,
         createdAt: new Date(),
-        status: 'Active', // Default status ketika job baru dibuat
+        status: 'Active', 
     };
     await saveData(jobsCollectionPath, dataToSave);
 }
 
-// Fungsi untuk mengambil data pekerjaan
 async function getJobOpenings(): Promise<JobListing[]> {
     if (!db) return [];
     try {
@@ -113,7 +114,6 @@ async function getJobOpenings(): Promise<JobListing[]> {
             } as JobListing);
         });
 
-        // Sort di sisi klien (terbaru di atas)
         return jobListings.sort((a, b) => {
             const dateA = a.createdAt?.toDate ? a.createdAt.toDate().getTime() : 0;
             const dateB = b.createdAt?.toDate ? b.createdAt.toDate().getTime() : 0;
@@ -126,6 +126,9 @@ async function getJobOpenings(): Promise<JobListing[]> {
     }
 }
 
+// ==========================================================
+// 2. KOMPONEN UMUM (LOADING, CARD, DLL.)
+// ==========================================================
 
 const LoadingSpinner: React.FC = () => (
     <div className="flex justify-center items-center py-8">
@@ -154,7 +157,6 @@ const formatDate = (timestamp: any) => {
         return 'N/A';
     }
     const date = timestamp.toDate();
-    // Format menjadi DD Mon YYYY (e.g., 21 Oct 2025)
     return date.toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
@@ -224,6 +226,10 @@ const JobCard: React.FC<JobCardProps> = ({ job, onManageJob, onApplyJob, userRol
     );
 };
 
+// ==========================================================
+// 3. KOMPONEN MODAL JOB OPENING (SESUAI GAMBAR)
+// ==========================================================
+
 interface JobOpeningModalProps {
     isOpen: boolean;
     onClose: () => void;
@@ -231,13 +237,13 @@ interface JobOpeningModalProps {
 }
 
 const initialFormState = {
-    jobName: '',
-    jobType: 'Full-Time',
-    minSalary: '',
-    maxSalary: '',
-    location: 'Remote/Jakarta', // Contoh placeholder
-    description: '',
-    numberOfCandidates: '1', 
+    jobName: '', // Default value sesuai gambar
+    jobType: '', // Default value sesuai gambar
+    minSalary: '', // Default value sesuai gambar
+    maxSalary: '', // Default value sesuai gambar
+    location: '', // Contoh placeholder
+    description: ``, // Deskripsi sesuai gambar
+    numberOfCandidates: '', 
     fullNameRequired: 'Mandatory' as 'Mandatory' | 'Optional' | 'Off',
     photoProfileRequired: 'Optional' as 'Mandatory' | 'Optional' | 'Off',
     genderRequired: 'Mandatory' as 'Mandatory' | 'Optional' | 'Off',
@@ -245,7 +251,7 @@ const initialFormState = {
     emailRequired: 'Mandatory' as 'Mandatory' | 'Optional' | 'Off',
     phoneNumberRequired: 'Mandatory' as 'Mandatory' | 'Optional' | 'Off',
     linkedinLinkRequired: 'Optional' as 'Mandatory' | 'Optional' | 'Off',
-    dateOfBirthRequired: 'Mandatory' as 'Mandatory' | 'Optional' | 'Off',
+    dateOfBirthRequired: 'Off' as 'Mandatory' | 'Optional' | 'Off', // Default Off sesuai gambar
 };
 type FormState = typeof initialFormState;
 
@@ -285,10 +291,12 @@ const JobOpeningModal: React.FC<JobOpeningModalProps> = ({ isOpen, onClose, onSa
                         key={option}
                         type="button"
                         onClick={() => handleRequirementChange(field, option)}
-                        className={`text-xs font-medium px-3 py-1 rounded-full transition duration-150 w-24 text-center
+                        className={`text-xs font-medium px-4 py-1.5 rounded-full transition duration-150 w-24 text-center border-2
                             ${form[field] === option 
-                                ? 'bg-teal-600 text-white shadow-md' 
-                                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                                // Aktif: Background putih, Border teal-600, Text teal-600
+                                ? 'bg-white text-teal-600 border-teal-600 shadow-sm' 
+                                // Non-Aktif: Background putih, Border abu-abu, Text abu-abu
+                                : 'bg-white text-gray-500 hover:text-gray-700 border-gray-300 hover:border-gray-400'
                             }`}
                     >
                         {option}
@@ -316,12 +324,13 @@ const JobOpeningModal: React.FC<JobOpeningModalProps> = ({ isOpen, onClose, onSa
     if (!isOpen) return null;
 
     return (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        // Latar belakang transparan redup (bg-black bg-opacity-50)
+        <div className="fixed inset-0 **bg-black bg-opacity-50** flex items-center justify-center z-50 p-4">
             <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[95vh] overflow-y-auto transform transition-all duration-300">
                 
                 {/* Header Modal */}
                 <div className="sticky top-0 bg-white p-6 border-b border-gray-200 flex justify-between items-center z-10">
-                    <h2 className="text-2xl font-bold text-gray-800">Job Opening</h2>
+                    <h2 className="text-xl font-bold text-gray-800">Job Opening</h2>
                     <button onClick={onClose} className="text-gray-400 hover:text-gray-600 p-1 rounded-full transition">
                         <X className="w-6 h-6" />
                     </button>
@@ -332,7 +341,7 @@ const JobOpeningModal: React.FC<JobOpeningModalProps> = ({ isOpen, onClose, onSa
                     
                     {/* Job Steering Section */}
                     <div className='space-y-4'>
-                        <h3 className="text-lg font-bold text-gray-800 border-b pb-2 mb-4">Job Steering</h3>
+                        <h3 className="text-lg font-bold text-gray-800 pb-2 border-b-2">Job Steering</h3>
                         {/* Job Name */}
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor="jobName">Job Name*</label>
@@ -373,7 +382,7 @@ const JobOpeningModal: React.FC<JobOpeningModalProps> = ({ isOpen, onClose, onSa
                                 name="description"
                                 value={form.description}
                                 onChange={handleChange}
-                                rows={6}
+                                rows={8} // Lebih banyak baris sesuai gambar
                                 required
                                 className="w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:ring-teal-500 focus:border-teal-500 resize-none text-sm"
                                 placeholder="- Develop, test, and maintain responsive, high-performance web applications..."
@@ -383,7 +392,7 @@ const JobOpeningModal: React.FC<JobOpeningModalProps> = ({ isOpen, onClose, onSa
 
                     {/* Job Salary Section */}
                     <div className="space-y-4">
-                        <h3 className="text-lg font-bold text-gray-800 border-b pb-2 mb-4">Job Salary</h3>
+                        <h3 className="text-lg font-bold text-gray-800 pb-2 border-b-2">Job Salary</h3>
                         {/* Number of Candidates */}
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor="numberOfCandidates">Number of Candidate Needed*</label>
@@ -401,37 +410,43 @@ const JobOpeningModal: React.FC<JobOpeningModalProps> = ({ isOpen, onClose, onSa
                         {/* Salary Range */}
                         <div className="flex space-x-4">
                             <div className="flex-1">
-                                <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor="minSalary">Minimum Estimated Salary (Rp)</label>
-                                <input
-                                    id="minSalary"
-                                    name="minSalary"
-                                    type="text"
-                                    value={form.minSalary}
-                                    onChange={handleSalaryChange}
-                                    required
-                                    className="w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-teal-500 focus:border-teal-500 text-sm"
-                                    placeholder="7000000"
-                                />
+                                <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor="minSalary">Minimum Estimated Salary</label>
+                                <div className="relative">
+                                    <span className="absolute left-0 top-1/2 transform -translate-y-1/2 ml-3 text-sm text-gray-500">Rp</span>
+                                    <input
+                                        id="minSalary"
+                                        name="minSalary"
+                                        type="text"
+                                        value={formatSalary(form.minSalary)}
+                                        onChange={handleSalaryChange}
+                                        required
+                                        className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-teal-500 focus:border-teal-500 text-sm"
+                                        placeholder="7.000.000"
+                                    />
+                                </div>
                             </div>
                             <div className="flex-1">
-                                <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor="maxSalary">Maximum Estimated Salary (Rp)</label>
-                                <input
-                                    id="maxSalary"
-                                    name="maxSalary"
-                                    type="text"
-                                    value={form.maxSalary}
-                                    onChange={handleSalaryChange}
-                                    required
-                                    className="w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-teal-500 focus:border-teal-500 text-sm"
-                                    placeholder="8000000"
-                                />
+                                <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor="maxSalary">Maximum Estimated Salary</label>
+                                <div className="relative">
+                                    <span className="absolute left-0 top-1/2 transform -translate-y-1/2 ml-3 text-sm text-gray-500">Rp</span>
+                                    <input
+                                        id="maxSalary"
+                                        name="maxSalary"
+                                        type="text"
+                                        value={formatSalary(form.maxSalary)}
+                                        onChange={handleSalaryChange}
+                                        required
+                                        className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-teal-500 focus:border-teal-500 text-sm"
+                                        placeholder="8.000.000"
+                                    />
+                                </div>
                             </div>
                         </div>
                     </div>
 
                     {/* Minimum Profile Information Required Section */}
                     <div className='space-y-1'>
-                        <h3 className="text-lg font-bold text-gray-800 border-b pb-2 mb-4 pt-4">Minimum Profile Information Required</h3>
+                        <h3 className="text-lg font-bold text-gray-800 pb-2 border-b-2 pt-4">Minimum Profile Information Required</h3>
                         <div className="space-y-0">
                             <RequirementToggle label="Full name" field="fullNameRequired" />
                             <RequirementToggle label="Photo Profile" field="photoProfileRequired" />
@@ -449,15 +464,15 @@ const JobOpeningModal: React.FC<JobOpeningModalProps> = ({ isOpen, onClose, onSa
                     )}
 
                     {/* Footer / Submit Button */}
-                    <div className="pt-4 border-t border-gray-200">
+                    <div className="pt-4">
                         <button
                             type="submit"
                             disabled={isSaving}
-                            className={`w-full py-3 px-6 rounded-lg font-semibold transition duration-300 shadow-lg flex items-center justify-center space-x-2
+                            className={`w-full py-3 px-6 rounded-lg font-semibold transition duration-300 shadow-md flex items-center justify-center space-x-2
                                 ${isSaving ? 'bg-teal-400 cursor-not-allowed' : 'bg-teal-600 hover:bg-teal-700 text-white'}`}
                         >
                             {isSaving && <Loader2 className="w-5 h-5 animate-spin mr-2" />}
-                            {isSaving ? 'Saving Job...' : 'Publish Job Opening'}
+                            {isSaving ? 'Saving Job...' : 'Publish Job'}
                         </button>
                     </div>
 
@@ -467,74 +482,104 @@ const JobOpeningModal: React.FC<JobOpeningModalProps> = ({ isOpen, onClose, onSa
     );
 };
 
-interface ManageJobModalProps {
-    isOpen: boolean;
-    onClose: () => void;
-    job: JobListing | null;
-}
+// ==========================================================
+// 4. KOMPONEN MODAL MANAGE JOB (EMPTY STATE)
+// ==========================================================
 
 const ManageJobModal: React.FC<ManageJobModalProps> = ({ isOpen, onClose, job }) => {
     if (!isOpen || !job) return null;
 
-    // Placeholder untuk tampilan detail Job dan list kandidat
+    // Meniru Empty State sesuai gambar ketika "No candidates yet (Empty State)"
+    const candidatesExist = dummyCandidates.length > 0; // Ubah ini menjadi 0 untuk menguji empty state
+
     return (
-        <div className="fixed inset-0 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 **bg-black bg-opacity-50** flex items-center justify-center z-50 p-4">
             <div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[95vh] overflow-y-auto transform transition-all duration-300">
                 {/* Header */}
-                <div className="sticky top-0 bg-white p-6 border-b border-gray-200 flex justify-between items-center z-10">
-                    <h2 className="text-2xl font-bold text-gray-800 flex items-center">
-                        <ChevronLeft className="w-6 h-6 mr-2 text-gray-400 cursor-pointer hover:text-gray-600" onClick={onClose} />
-                        Manage: {job.jobName}
+                <div className="sticky top-0 bg-white px-6 py-4 border-b border-gray-200 flex justify-between items-center z-10">
+                    <h2 className="text-xl font-bold text-gray-800 flex items-center">
+                        <ChevronLeft className="w-5 h-5 mr-2 text-gray-400 cursor-pointer hover:text-gray-600" onClick={onClose} />
+                        Job / **Manage Candidates**
                     </h2>
                     <button onClick={onClose} className="text-gray-400 hover:text-gray-600 p-1 rounded-full transition">
                         <X className="w-6 h-6" />
                     </button>
                 </div>
                 
-                {/* Content: Job Info + Candidates List */}
+                {/* Job Title */}
+                <div className="px-6 py-4 border-b border-gray-200">
+                    <h3 className="text-2xl font-bold text-gray-900">{job.jobName}</h3>
+                </div>
+
+                {/* Content: Empty State vs. Candidates List */}
                 <div className="p-6">
-                    <div className="bg-teal-50 p-4 rounded-lg mb-6">
-                        <p className="text-sm font-semibold text-teal-700">Candidates Applied: {dummyCandidates.length}</p>
-                    </div>
-                    {/* Placeholder Table for Candidates */}
-                    <h3 className="text-xl font-bold text-gray-800 mb-4">Candidate List</h3>
-                    <div className="overflow-x-auto">
-                        <table className="min-w-full divide-y divide-gray-200">
-                            <thead className="bg-gray-50">
-                                <tr>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Stage</th>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Applied Date</th>
-                                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody className="bg-white divide-y divide-gray-200">
-                                {dummyCandidates.map(candidate => (
-                                    <tr key={candidate.id} className="hover:bg-gray-50">
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{candidate.name}</td>
-                                        <td className="px-6 py-4 whitespace-nowrap">
-                                            <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
-                                                ${candidate.stage === 'Screening' ? 'bg-yellow-100 text-yellow-800' : 
-                                                    candidate.stage === 'Interview' ? 'bg-blue-100 text-blue-800' : 
-                                                    candidate.stage === 'Hired' ? 'bg-green-100 text-green-800' : 
-                                                    'bg-red-100 text-red-800'}`}>
-                                                {candidate.stage}
-                                            </span>
-                                        </td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{candidate.appliedDate}</td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                            <a href="#" className="text-teal-600 hover:text-teal-900">View Profile</a>
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
+                    {candidatesExist ? (
+                        // Conditional Rendering: List Kandidat (DIPERTAHANKAN jika ada data)
+                        <>
+                            <div className="bg-teal-50 p-4 rounded-lg mb-6">
+                                <p className="text-sm font-semibold text-teal-700">Candidates Applied: {dummyCandidates.length}</p>
+                            </div>
+                            <h3 className="text-xl font-bold text-gray-800 mb-4">Candidate List</h3>
+                            <div className="overflow-x-auto">
+                                <table className="min-w-full divide-y divide-gray-200">
+                                    <thead className="bg-gray-50">
+                                        <tr>
+                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
+                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Stage</th>
+                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Applied Date</th>
+                                            <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="bg-white divide-y divide-gray-200">
+                                        {dummyCandidates.map(candidate => (
+                                            <tr key={candidate.id} className="hover:bg-gray-50">
+                                                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{candidate.name}</td>
+                                                <td className="px-6 py-4 whitespace-nowrap">
+                                                    <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
+                                                        ${candidate.stage === 'Screening' ? 'bg-yellow-100 text-yellow-800' : 
+                                                            candidate.stage === 'Interview' ? 'bg-blue-100 text-blue-800' : 
+                                                            candidate.stage === 'Hired' ? 'bg-green-100 text-green-800' : 
+                                                            'bg-red-100 text-red-800'}`}>
+                                                        {candidate.stage}
+                                                    </span>
+                                                </td>
+                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{candidate.appliedDate}</td>
+                                                <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                                    <a href="#" className="text-teal-600 hover:text-teal-900">View Profile</a>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </>
+                    ) : (
+                        // Conditional Rendering: Empty State (SAMA PERSIS DENGAN GAMBAR)
+                        <div className="flex flex-col items-center justify-center p-20 bg-gray-50 rounded-lg border-2 border-dashed border-gray-200">
+                            {/* SVG Placeholder (Menggunakan Icon Lucide untuk ilustrasi) */}
+                            <Users className="w-16 h-16 text-gray-400 mb-4" />
+                            <div className="w-16 h-16 bg-white border border-gray-300 rounded-full flex items-center justify-center -mt-10 mb-4">
+                                <X className="w-8 h-8 text-red-500" />
+                            </div>
+                            
+                            <h3 className="text-lg font-semibold text-gray-900 mt-2 mb-1">
+                                No candidates found
+                            </h3>
+                            <p className="text-sm text-gray-500 text-center">
+                                There are no candidates currently applying for this job.
+                            </p>
+                            {/* Jika mau menambahkan tombol, bisa di sini. Tapi di desain tidak ada. */}
+                        </div>
+                    )}
                 </div>
             </div>
         </div>
     );
 }
+
+// ==========================================================
+// 5. KOMPONEN UTAMA (JOB LIST PAGE)
+// ==========================================================
 
 const JobListPage: React.FC = () => {
     const [jobListings, setJobListings] = useState<JobListing[]>([]);
@@ -555,6 +600,10 @@ const JobListPage: React.FC = () => {
                     const role = userDoc.data().role;
                     setUser({ uid: currentUser.uid, email: currentUser.email!, role });
                     setUserRole(role);
+                } else {
+                    // Jika user ada tapi tidak ada role (misalnya user baru), default ke 'user'
+                    setUser({ uid: currentUser.uid, email: currentUser.email!, role: 'user' });
+                    setUserRole('user');
                 }
             } else {
                 router.push('/login');
@@ -584,7 +633,7 @@ const JobListPage: React.FC = () => {
     const handleSaveToDatabase = async (data: any) => {
         try {
             await saveJobOpening(data);
-            await handleJobFetch(); // Reload data setelah save
+            await handleJobFetch(); 
         } catch (error) {
             throw error;
         }
@@ -604,7 +653,6 @@ const JobListPage: React.FC = () => {
 
     const handleApplyJob = async (job: JobListing) => {
         if (!user) return;
-        // Simple apply - in real app, would have a form
         try {
             await applyToJob(job.id, user.uid, {
                 name: user.email, // Placeholder
@@ -693,7 +741,7 @@ const JobListPage: React.FC = () => {
                         {isLoading ? (
                             <LoadingSpinner />
                         ) : jobListings.length === 0 ? (
-                            // Empty State (No Jobs) - Sesuai dengan desain umum
+                            // Empty State (No Jobs)
                             <div className="text-center p-12 bg-white rounded-xl border-2 border-dashed border-gray-300">
                                 <Briefcase className="w-12 h-12 text-gray-400 mx-auto mb-4" />
                                 <h3 className="text-lg font-semibold text-gray-900 mb-2">No job listings found</h3>
@@ -741,7 +789,7 @@ const JobListPage: React.FC = () => {
                         )}
                     </div>
 
-                    {/* Sidebar/Recruitment Card (Fixed Width) - Only for admin */}
+                    {/* Sidebar/Recruitment Card (Only for admin) */}
                     {userRole === 'admin' && (
                         <div className="w-full lg:w-96 relative flex-shrink-0">
                             <div className="p-6 rounded-xl bg-gray-800 shadow-xl relative overflow-hidden h-fit sticky top-[80px]">
