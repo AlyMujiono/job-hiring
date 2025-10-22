@@ -704,7 +704,7 @@ const JobListPage: React.FC = () => {
                     </div>
                 </div>
             </header>
-
+ 
             <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
                 {/* Header Content & Search */}
                 <div className="mb-8 flex flex-col sm:flex-row justify-between sm:items-center">
